@@ -1,0 +1,38 @@
+{
+  "contract": "TASK-120 scope context and epochs (plan §3.4, SN1, S12, F13)",
+  "legacy_rule": "A unit with exactly one active eligible source whose source.max_profile and channel.max_profile are both NULL uses the legacy NULL context: one DEMO-REDUCED variant, legacy digest, legacy endpoints.",
+  "profile_rule": "Channel profiles are those with rank <= min(channel.max_profile, source.max_profile); NULL counts as DEMO-REDUCED. Channels sorted by id.",
+  "example_context": {
+    "v": 1,
+    "unit_id": "22222222-2222-4222-8222-222222222222",
+    "policy_epoch": 3,
+    "scope_epoch": 1,
+    "channels": [
+      {
+        "id": "aaaaaaaa-0000-4000-8000-000000000001",
+        "profiles": [
+          "DEMO-FULL",
+          "DEMO-REDUCED",
+          "DEMO-SUMMARY"
+        ]
+      },
+      {
+        "id": "aaaaaaaa-0000-4000-8000-000000000003",
+        "profiles": [
+          "DEMO-SUMMARY"
+        ]
+      }
+    ]
+  },
+  "canonical_bytes": "{\"channels\":[{\"id\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"profiles\":[\"DEMO-FULL\",\"DEMO-REDUCED\",\"DEMO-SUMMARY\"]},{\"id\":\"aaaaaaaa-0000-4000-8000-000000000003\",\"profiles\":[\"DEMO-SUMMARY\"]}],\"policy_epoch\":3,\"scope_epoch\":1,\"unit_id\":\"22222222-2222-4222-8222-222222222222\",\"v\":1}",
+  "scope_context_hash": "ead096b0a9fff33dd24a1ba4468c9a046bf59fa946101832c13eb02040410542",
+  "hash_function": "apps.reports.canonical.digest (sha256 of sort_keys, compact separators, UTF-8)",
+  "epochs": {
+    "Organization.policy_epoch": "bigint >= 0; +1 per policy activate/deactivate; covers every unit",
+    "Unit.scope_epoch": "bigint >= 0; +1 per scope change affecting that unit only",
+    "trigger": "BEFORE UPDATE rejects decrease and any increase other than exactly +1",
+    "validity": "current only if job.policy_epoch == org.policy_epoch and job.scope_epoch == unit.scope_epoch",
+    "no_revival": "earlier epochs never become current again (D6)"
+  },
+  "topology_writer_FN1": "scopes/services.py is the sole supported writer of ChannelSource, SharingChannel.max_profile, SharingChannel.active and Unit.active. Deactivating or reactivating a channel is a scope change for every unit with a source on that channel."
+}

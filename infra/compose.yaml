@@ -1,0 +1,62 @@
+name: kapit-c2-m1
+
+x-runtime: &runtime
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings
+    KAPIT_DB_HOST: db
+    KAPIT_DB_PORT: "5432"
+    KAPIT_RUNTIME_CONTEXT: compose-m1
+  env_file: ../.cache/m1-runtime/backend.env
+  restart: "no"
+  depends_on:
+    db:
+      condition: service_healthy
+  networks: [local]
+
+services:
+  db:
+    image: postgres:17.11-alpine
+    container_name: kapit-c2-m1-db
+    environment:
+      POSTGRES_DB: kapit_m1
+      POSTGRES_USER: kapit_m1
+    env_file: ../.cache/m1-runtime/db.env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username kapit_m1 --dbname kapit_m1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+    networks: [local]
+  backend:
+    <<: *runtime
+    container_name: kapit-c2-m1-backend
+    command: ["python", "infra/container_entrypoint.py", "backend"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/auth/csrf/', timeout=3).read()"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  worker:
+    <<: *runtime
+    container_name: kapit-c2-m1-worker
+    command: ["python", "infra/container_entrypoint.py", "worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+
+networks:
+  local:
+    internal: true

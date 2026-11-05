@@ -1,0 +1,5 @@
+[
+  {"area_id":"area-a","label":"Area A","anchor":{"x":22,"y":30},"path":"M5 10 L40 10 L40 50 L5 50 Z"},
+  {"area_id":"area-b","label":"Area B","anchor":{"x":62,"y":30},"path":"M45 10 L80 10 L80 50 L45 50 Z"},
+  {"area_id":"area-c","label":"Area C","anchor":{"x":42,"y":75},"path":"M20 55 L65 55 L65 95 L20 95 Z"}
+]

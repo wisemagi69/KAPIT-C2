@@ -1,0 +1,62 @@
+{
+  "contract_id": "kapit-m4-isolated-recovery",
+  "version": "1.0.0",
+  "task": "TASK-149",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "scope": "Read-only local isolated recovery preparation; no retained overwrite, actual restore, key read, cleanup or application reopen.",
+  "helper": {
+    "path": "infra/recovery.py",
+    "entrypoint": "prepare(manifest, archive=path, storage_snapshot=path, key_inventory=id_to_path, target_id=token, port=port, expected=ExpectedBackup)",
+    "trusted_expected_inventory": {
+      "python_type": "ExpectedBackup",
+      "required_fields": ["archive_sha256", "storage_sha256", "postgres_major", "code_sha256", "migrations_sha256", "key_ids"],
+      "hash_format": "Lowercase 64-hex SHA-256.",
+      "postgres_major": "Strict integer >=16; exact manifest equality required. This is metadata compatibility, not installed-tool/runtime verification.",
+      "key_ids": "Nonempty frozenset of opaque IDs matching ^[a-zA-Z0-9_.-]{1,80}$; no key bytes.",
+      "trust": "Must come from independently trusted inventory, not the backup manifest itself. No signatures/authenticity or actual decryption are established by equality checks alone."
+    },
+    "manifest": {
+      "exact_keys": ["schema", "archive_sha256", "storage_sha256", "postgres_major", "code_sha256", "migrations_sha256", "key_ids"],
+      "schema": 1,
+      "schema_boolean_rejected": true,
+      "hashes_and_version": "Exact type/value agreement with trusted expected inventory.",
+      "key_ids": "Unique list with exact trusted expected key-ID membership. Key inventory may contain additional files, but every required ID must resolve to an existing private file."
+    },
+    "inputs": "Existing absolute canonical files under workspace .cache; no traversal, symlink/junction redirects or archive/storage/key file identity aliases including hardlinks. Stream-hash archive/storage in 1MiB chunks; never read key files.",
+    "target": {
+      "token_pattern": "^[0-9a-f]{32}$",
+      "root_relative": ".cache/m4-recovery",
+      "database_prefix": "kapit_recovery_",
+      "allowed_port_min": 56000,
+      "allowed_port_max": 56999,
+      "listen_address": "127.0.0.1",
+      "existing_target": "Refuse any existing directory/file/link even if a prior marker matches; never adopt or overwrite.",
+      "existing_root_owner_marker": {"schema": 1, "owner": "KAPIT-C2 isolated recovery v1", "workspace": "Exact resolved workspace path"},
+      "marker_max_bytes": 4096,
+      "listener_check": "Brief exclusive loopback bind where supported; occupied/unavailable resource fails. This is neither process adoption nor a reservation."
+    },
+    "result": {
+      "schema": 1,
+      "status": "PREPARED_NOT_RESTORED",
+      "application": "CLOSED",
+      "target_reserved": false,
+      "key_material_verified": false,
+      "additional_fields": ["target_id", "database", "port", "required_before_restore", "required_before_open"],
+      "no_private_fields": ["archive_path", "storage_path", "key_path", "key_bytes", "private_digests", "exception_text"]
+    },
+    "failure_codes": ["EXPECTED_INVENTORY_REQUIRED", "EXPECTED_INVENTORY_INVALID", "MANIFEST_INVALID", "BACKUP_INCOMPATIBLE", "KEY_INVENTORY_MISMATCH", "KEY_INVENTORY_MISSING", "INPUT_PATH_INVALID", "INPUT_IDENTITY_CONFLICT", "BACKUP_DIGEST_MISMATCH", "TARGET_INVALID", "TARGET_PORT_INVALID", "TARGET_OWNERSHIP_INVALID", "TARGET_PREEXISTS", "TARGET_PORT_UNAVAILABLE", "PREPARATION_UNAVAILABLE"],
+    "no_execution": ["subprocess", "cluster_creation", "ownership_reservation", "database_restore", "restart", "key_read", "decryption", "cleanup", "application_reopen"]
+  },
+  "required_before_restore": ["ATOMIC_OWNERSHIP_RESERVATION", "RECHECK_INPUTS_AND_LISTENER", "ISOLATED_RUNTIME_CONTEXT"],
+  "required_before_open": ["ACTUAL_RESTORE", "DECRYPTION_AND_RELATIONAL_GUARDS", "LEASE_RECEIPT_DEDUP_RECOVERY", "AUTHORITATIVE_CURRENT_REVOCATION_POLICY_WITHDRAWAL_RECONCILIATION", "CURRENT_ACCESS_DENIAL_TESTS", "ELAPSED_TIME_AND_DATA_LOSS_MEASUREMENT"],
+  "runtime_requirements": [
+    "A separately scoped executor must atomically reserve a new uniquely owned workspace target/cluster/port/runtime context and reverify ownership, input digests and compatibility immediately before restore. Read-only preparation has a time-of-check/time-of-use gap.",
+    "Never touch existing unrelated PostgreSQL services or retained kapit_m1 data; existing targets and unknown processes/resources remain refused.",
+    "Backup may resurrect withdrawn outputs, revoked grants, sessions or keys. Without authoritative current revocation/policy/withdrawal evidence, remain CLOSED; backup alone cannot establish current authorization.",
+    "Rehearse actual restore and correct/missing/wrong-key decryption, relational guards, worker lease recovery, receipts/dedup and current scope denial; unit mocks prove guards only.",
+    "Keep failed isolated sandbox evidence. Any later cleanup requires a separate explicit ownership-verified procedure; never perform broad recursive cleanup.",
+    "Record actual backup age, restore/reconciliation elapsed duration and known data-loss window. RPO 24h/RTO 4h are proposed targets, not achieved results."
+  ],
+  "actual_restore_claim": false,
+  "reopen_authorized": false
+}

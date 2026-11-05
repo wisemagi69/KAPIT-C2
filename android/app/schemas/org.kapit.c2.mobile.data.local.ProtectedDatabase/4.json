@@ -1,0 +1,536 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "ba831816175e17e88c842ccd0aace5d9",
+    "entities": [
+      {
+        "tableName": "authority",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton` INTEGER NOT NULL, `contextJson` TEXT NOT NULL, `leaseJson` TEXT NOT NULL, `accessToken` BLOB NOT NULL, `refreshToken` BLOB NOT NULL, `accessExpires` INTEGER NOT NULL, `refreshExpires` INTEGER NOT NULL, PRIMARY KEY(`singleton`))",
+        "fields": [
+          {
+            "fieldPath": "singleton",
+            "columnName": "singleton",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contextJson",
+            "columnName": "contextJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leaseJson",
+            "columnName": "leaseJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessToken",
+            "columnName": "accessToken",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "refreshToken",
+            "columnName": "refreshToken",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessExpires",
+            "columnName": "accessExpires",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "refreshExpires",
+            "columnName": "refreshExpires",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton"
+          ]
+        }
+      },
+      {
+        "tableName": "drafts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `recordJson` TEXT NOT NULL, `submittedOperation` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordJson",
+            "columnName": "recordJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "submittedOperation",
+            "columnName": "submittedOperation",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "submitted",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `reportId` TEXT NOT NULL, `expectedRevision` INTEGER NOT NULL, `requestBytes` BLOB NOT NULL, `requestHash` TEXT NOT NULL, `contentJson` TEXT NOT NULL, `captureJson` TEXT NOT NULL, `queuedAtServerMillis` INTEGER NOT NULL, `predecessorOperation` TEXT, PRIMARY KEY(`operationId`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reportId",
+            "columnName": "reportId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedRevision",
+            "columnName": "expectedRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requestBytes",
+            "columnName": "requestBytes",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requestHash",
+            "columnName": "requestHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentJson",
+            "columnName": "contentJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureJson",
+            "columnName": "captureJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queuedAtServerMillis",
+            "columnName": "queuedAtServerMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "predecessorOperation",
+            "columnName": "predecessorOperation",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        }
+      },
+      {
+        "tableName": "outbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `delivery` TEXT NOT NULL, `pause` TEXT, `attempts` INTEGER NOT NULL, `nextAttemptElapsed` INTEGER, `retryBoot` TEXT, `claimToken` TEXT, `claimSession` TEXT, `claimBoot` TEXT, `claimDeadline` INTEGER, `claimGeneration` INTEGER, `lastErrorCode` TEXT DEFAULT NULL, PRIMARY KEY(`operationId`), FOREIGN KEY(`operationId`) REFERENCES `submitted`(`operationId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "delivery",
+            "columnName": "delivery",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pause",
+            "columnName": "pause",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextAttemptElapsed",
+            "columnName": "nextAttemptElapsed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "retryBoot",
+            "columnName": "retryBoot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "claimToken",
+            "columnName": "claimToken",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "claimSession",
+            "columnName": "claimSession",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "claimBoot",
+            "columnName": "claimBoot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "claimDeadline",
+            "columnName": "claimDeadline",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "claimGeneration",
+            "columnName": "claimGeneration",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastErrorCode",
+            "columnName": "lastErrorCode",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "submitted",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "operationId"
+            ],
+            "referencedColumns": [
+              "operationId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "receipts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `reportId` TEXT NOT NULL, `revisionId` TEXT NOT NULL, `revisionNo` INTEGER NOT NULL, PRIMARY KEY(`operationId`), FOREIGN KEY(`operationId`) REFERENCES `submitted`(`operationId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reportId",
+            "columnName": "reportId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revisionId",
+            "columnName": "revisionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revisionNo",
+            "columnName": "revisionNo",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "submitted",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "operationId"
+            ],
+            "referencedColumns": [
+              "operationId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "commands",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`commandId` TEXT NOT NULL, `kind` TEXT NOT NULL, `inputHash` TEXT NOT NULL, `resultId` TEXT NOT NULL, `resultJson` TEXT, PRIMARY KEY(`commandId`))",
+        "fields": [
+          {
+            "fieldPath": "commandId",
+            "columnName": "commandId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inputHash",
+            "columnName": "inputHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultId",
+            "columnName": "resultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultJson",
+            "columnName": "resultJson",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "commandId"
+          ]
+        }
+      },
+      {
+        "tableName": "report_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `reportId` TEXT NOT NULL, `revision` INTEGER NOT NULL, `validatedJson` TEXT NOT NULL, `checkedAt` INTEGER NOT NULL, `opened` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reportId",
+            "columnName": "reportId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validatedJson",
+            "columnName": "validatedJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checkedAt",
+            "columnName": "checkedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opened",
+            "columnName": "opened",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "refresh_attempts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton` INTEGER NOT NULL, `attemptId` TEXT NOT NULL, `capabilityId` TEXT NOT NULL, `generation` INTEGER NOT NULL, `authorityRevision` INTEGER NOT NULL, `familyId` TEXT NOT NULL, `credentialHash` TEXT NOT NULL, `requestStartElapsed` INTEGER NOT NULL, `bootId` TEXT NOT NULL, PRIMARY KEY(`singleton`))",
+        "fields": [
+          {
+            "fieldPath": "singleton",
+            "columnName": "singleton",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptId",
+            "columnName": "attemptId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capabilityId",
+            "columnName": "capabilityId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorityRevision",
+            "columnName": "authorityRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "familyId",
+            "columnName": "familyId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "credentialHash",
+            "columnName": "credentialHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requestStartElapsed",
+            "columnName": "requestStartElapsed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootId",
+            "columnName": "bootId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton"
+          ]
+        }
+      },
+      {
+        "tableName": "photo_pending",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `reportId` TEXT NOT NULL, `revisionId` TEXT NOT NULL, `revisionNo` INTEGER NOT NULL, `captureJson` TEXT NOT NULL, `bytes` BLOB, `bytesHash` TEXT NOT NULL, `evidenceId` TEXT, `mediaType` TEXT NOT NULL, `filename` TEXT NOT NULL, `scopeJson` TEXT NOT NULL, PRIMARY KEY(`operationId`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reportId",
+            "columnName": "reportId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revisionId",
+            "columnName": "revisionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revisionNo",
+            "columnName": "revisionNo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureJson",
+            "columnName": "captureJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytes",
+            "columnName": "bytes",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "bytesHash",
+            "columnName": "bytesHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "evidenceId",
+            "columnName": "evidenceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mediaType",
+            "columnName": "mediaType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filename",
+            "columnName": "filename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeJson",
+            "columnName": "scopeJson",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ba831816175e17e88c842ccd0aace5d9')"
+    ]
+  }
+}

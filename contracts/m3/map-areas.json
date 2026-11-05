@@ -1,0 +1,54 @@
+{
+  "contract": "TASK-120 local fictional map assets schema (plan §6); no tiles, geocoders or external requests",
+  "schema": {
+    "area_id": "^area-[a-c]$",
+    "label": "Area A|Area B|Area C",
+    "anchor": {
+      "x": "0..100",
+      "y": "0..100"
+    },
+    "path": "SVG path data in a 0..100 viewBox"
+  },
+  "areas": [
+    {
+      "area_id": "area-a",
+      "label": "Area A",
+      "anchor": {
+        "x": 22,
+        "y": 30
+      },
+      "path": "M5 10 L40 10 L40 50 L5 50 Z"
+    },
+    {
+      "area_id": "area-b",
+      "label": "Area B",
+      "anchor": {
+        "x": 62,
+        "y": 30
+      },
+      "path": "M45 10 L80 10 L80 50 L45 50 Z"
+    },
+    {
+      "area_id": "area-c",
+      "label": "Area C",
+      "anchor": {
+        "x": 42,
+        "y": 75
+      },
+      "path": "M20 55 L65 55 L65 95 L20 95 Z"
+    }
+  ],
+  "map_response": {
+    "areas": [
+      {
+        "area_id": "area-b",
+        "count": 1
+      }
+    ],
+    "unmapped": 0
+  },
+  "summary_profile_map_response": {
+    "areas": [],
+    "unmapped": 1
+  }
+}

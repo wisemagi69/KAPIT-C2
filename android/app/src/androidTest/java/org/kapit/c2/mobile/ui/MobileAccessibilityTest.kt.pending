@@ -1,0 +1,380 @@
+package org.kapit.c2.mobile.ui
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.UiAutomation
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.os.SystemClock
+import android.util.AtomicFile
+import android.view.InputDevice
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
+import android.view.View
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import org.json.JSONObject
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TestName
+import org.junit.runner.RunWith
+import org.kapit.c2.mobile.MainActivity
+
+/**
+ * Actual platform tree and installed TalkBack keyboard interaction, with synthetic presentation only.
+ * No Compose test rule, direct accessibility focus/click action, fake auth, receipt or unlock callback.
+ * Host separately proves bound-service state and restores its owned disposable emulator settings.
+ * Default/Alt keymap is an explicit prerequisite; touch gestures and human listening are not tested.
+ */
+@RunWith(AndroidJUnit4::class)
+class MobileAccessibilityTest {
+    @get:Rule val testName = TestName()
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    private val presentation = mutableStateOf(MobileUiState())
+    private val commands = mutableListOf<MobileAction>()
+    private var scenario: ActivityScenario<MainActivity>? = null
+    private lateinit var automation: UiAutomation
+    private var previousAutomationFlags: Int? = null
+    private var deadline = 0L
+    private var versionCode = 0L
+    private var versionName = ""
+    private val focusEvents = AtomicInteger()
+    private var nextMoves = 0
+    private var previousMoves = 0
+    private var activations = 0
+
+    @Before fun requireOwnedTalkBackEnvironment() {
+        val args = InstrumentationRegistry.getArguments()
+        check(context.packageName.endsWith(".spike") && Build.VERSION.SDK_INT >= 35) { "A11Y_PACKAGE_API" }
+        check(Build.HARDWARE in setOf("ranchu", "goldfish") && args.getString("ownedEmulator") == "true") { "A11Y_OWNERSHIP" }
+        check(testName.methodName in METHODS && args.getString("class") == "${javaClass.name}#${testName.methodName}") { "A11Y_ISOLATED_METHOD" }
+        check(args.getString("talkbackKeymap") == "default-alt") { "A11Y_KEYMAP_PREREQUISITE" }
+        check(!evidenceFile.exists() && !File(context.noBackupFilesDir, "m2-live-phase").exists()) { "A11Y_FRESH_FIXTURE_REQUIRED" }
+        val installed = context.packageManager.getPackageInfo(TALKBACK_PACKAGE, PackageManager.PackageInfoFlags.of(0))
+        versionCode = installed.longVersionCode
+        versionName = installed.versionName ?: ""
+        check(versionCode > 0 && args.getString("talkbackVersionCode")?.toLongOrNull() == versionCode) { "A11Y_VERSION_MISMATCH" }
+        check(versionName.length in 1..80 && versionName.all { it.code in 32..126 }) { "A11Y_VERSION_METADATA" }
+        check(Build.FINGERPRINT.length in 1..256 && Build.FINGERPRINT.all { it.code in 32..126 }) { "A11Y_BUILD_METADATA" }
+        // This must be the first UiAutomation acquisition in this isolated instrumentation process.
+        automation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
+        previousAutomationFlags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        deadline = SystemClock.elapsedRealtime() + 150_000
+        await("A11Y_SERVICE_UNAVAILABLE", 15_000) { serviceReady() }
+        automation.setOnAccessibilityEventListener { event ->
+            if (event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED && event.packageName?.toString() == context.packageName) {
+                focusEvents.incrementAndGet() // No event/source/text retained or logged.
+            }
+        }
+    }
+
+    @After fun closeFixtureAndRestoreAutomationFlags() {
+        try { scenario?.close() }
+        finally {
+            scenario = null
+            instrumentation.runOnMainSync { commands.clear(); presentation.value = MobileUiState() }
+            if (::automation.isInitialized) {
+                automation.setOnAccessibilityEventListener(null)
+                previousAutomationFlags?.let { original ->
+                    automation.serviceInfo = automation.serviceInfo.apply { flags = original }
+                }
+            }
+        }
+    }
+
+    @Test fun talkBackSignInPasswordErrorsAndActivation() {
+        show(MobileUiState(accountGeneration = 7, access = MobileAccess.SIGNED_OUT,
+            capabilities = MobileCapabilities(authenticate = true), connection = ConnectionUi.NOT_CHECKED))
+        navigateTo { edit(it, "Username") && it.isEnabled }
+        roundTripFocus()
+        navigateTo { edit(it, "Password") && it.isEnabled }
+        check(focused { it.isPassword }) { "A11Y_PASSWORD_ROLE" }
+        navigateTo { button(it, "Continue securely") }
+        activate { tree { edit(it, "Username") && it.isContentInvalid && !it.error.isNullOrBlank() } }
+        check(tree { hasLabel(it, "Check the marked sign-in fields.") && it.liveRegion == View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE }) { "A11Y_SIGNIN_LIVE_ERROR" }
+        assertActions { it.isEmpty() }
+        // Platform text setup is separate from the TalkBack navigation/activation being measured.
+        setSyntheticText("Username", "synthetic.accessibility")
+        setSyntheticText("Password", "Synthetic-fixture-only")
+        check(tree { edit(it, "Password") && it.isPassword && it.text?.contains("Synthetic-fixture-only") != true }) { "A11Y_PASSWORD_MASKING" }
+        navigateTo { button(it, "Continue securely") }
+        activate { actionCount() == 1 }
+        assertActions { actions -> actions.singleOrNull().let { it is MobileAction.SignIn && it.generation == 7L &&
+            it.username == "synthetic.accessibility" && it.password == "Synthetic-fixture-only" } }
+        check(tree { button(it, "Signing in…") && !it.isEnabled }) { "A11Y_SIGNIN_DISABLED" }
+        finishScenario()
+    }
+
+    @Test fun talkBackEditorValidationAndFieldNavigation() {
+        show(editor(validForm().copy(siteLabel = "")))
+        navigateTo { button(it, "Review & queue submission") }
+        activate { tree { edit(it, "Site label") && it.isContentInvalid && !it.error.isNullOrBlank() } }
+        check(tree { hasLabel(it, "1 field needs attention. Review the marked fields.") && it.liveRegion == View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE }) { "A11Y_EDITOR_LIVE_ERROR" }
+        navigateTo { edit(it, "Site label") }
+        check(focused { it.isEnabled && it.isContentInvalid && !it.error.isNullOrBlank() }) { "A11Y_EDITOR_FIELD_ERROR" }
+        roundTripFocus()
+        assertActions { it.isEmpty() }
+        finishScenario()
+    }
+
+    @Test fun talkBackConfirmationRequiresExplicitQueueAndKeepsLockAvailable() {
+        show(editor(validForm()))
+        navigateTo { button(it, "Review & queue submission") }
+        activate { tree { hasLabel(it, "Queue this fixed submission?") } }
+        assertActions { it.isEmpty() }
+        navigateTo { button(it, "Keep editing") }
+        activate { !tree { hasLabel(it, "Queue this fixed submission?") } }
+        assertActions { it.isEmpty() }
+        navigateTo { button(it, "Review & queue submission") }
+        activate { tree { hasLabel(it, "Queue this fixed submission?") } }
+        navigateTo { button(it, "Confirm & queue") }
+        activate { actionCount() == 1 }
+        assertActions { actions -> actions.singleOrNull().let { it is MobileAction.QueueSubmission && it.generation == 7L &&
+            it.expectedDraftRevision == 3L && it.form == validForm() && it.commandId.isNotEmpty() } }
+        check(!tree { hasLabel(it, "Queue this fixed submission?") }) { "A11Y_CONFIRMATION_DISMISSED" }
+        check(tree { button(it, "Review & queue submission") && !it.isEnabled }) { "A11Y_DUPLICATE_QUEUE_DISABLED" }
+        navigateTo { button(it, "Lock") && it.isEnabled }
+        activate { actionCount() == 2 }
+        assertActions { it.size == 2 && it[0] is MobileAction.QueueSubmission && it[1] == MobileAction.Lock(7) }
+        finishScenario()
+    }
+
+    @Test fun talkBackOfflineOutboxDistinguishesReceiptAndDisabledRetry() {
+        val offline = workspace().copy(screen = MobileScreen.OUTBOX, connection = ConnectionUi.OFFLINE,
+            outbox = listOf(OutboxItemUi("queued-accessibility-fixture", "Synthetic queued item", "fixture time", DeliveryUi.QUEUED, canRetry = true),
+                OutboxItemUi("received-accessibility-fixture", "Synthetic received item", "fixture time", DeliveryUi.RECEIVED)))
+        show(offline)
+        navigateTo { hasLabel(it, "Queued on this phone") }
+        navigateTo { hasLabel(it, "Received by server") }
+        check(tree { button(it, "Sync now") && !it.isEnabled } && tree { button(it, "Retry same submission") && !it.isEnabled }) { "A11Y_OFFLINE_ACTIONS_DISABLED" }
+        navigateTo { button(it, "Retry same submission") && !it.isEnabled }
+        combo(KeyEvent.KEYCODE_ENTER)
+        SystemClock.sleep(300)
+        assertActions { it.isEmpty() }
+        update(offline.copy(connection = ConnectionUi.NOT_CHECKED, capabilities = offline.capabilities.copy(synchronize = true)))
+        navigateTo { button(it, "Sync now") && it.isEnabled }
+        activate { actionCount() == 1 }
+        assertActions { it == listOf(MobileAction.SyncNow(7)) }
+        finishScenario()
+    }
+
+    @Test fun talkBackLockedAndExpiredAccessExposeRecoveryActionsOnly() {
+        show(MobileUiState(accountGeneration = 7, access = MobileAccess.LOCKED,
+            capabilities = MobileCapabilities(unlock = true, authenticate = true)))
+        navigateTo { hasLabel(it, "Workspace locked") }
+        check(!tree { edit(it, "Site label") || hasLabel(it, "Synthetic accessibility site") }) { "A11Y_LOCKED_CONTENT_HIDDEN" }
+        navigateTo { button(it, "Unlock workspace") && it.isEnabled }
+        activate { actionCount() == 1 }
+        assertActions { it == listOf(MobileAction.Unlock(7)) }
+        // Presentation transition only; no fake credential return or successful unlock is injected.
+        update(MobileUiState(accountGeneration = 8, access = MobileAccess.LEASE_EXPIRED,
+            capabilities = MobileCapabilities(authenticate = true)))
+        navigateTo { hasLabel(it, "Connect to renew access") }
+        check(!tree { button(it, "Unlock workspace") || edit(it, "Site label") }) { "A11Y_EXPIRED_CONTENT_HIDDEN" }
+        navigateTo { button(it, "Sign in online to this account") && it.isEnabled }
+        activate { actionCount() == 2 }
+        assertActions { it == listOf(MobileAction.Unlock(7), MobileAction.BeginSignIn(8, true)) }
+        finishScenario()
+    }
+
+    private fun show(state: MobileUiState) {
+        presentation.value = state
+        scenario = ActivityScenario.launch(MainActivity::class.java).also { host ->
+            host.onActivity { activity ->
+                check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0) { "A11Y_SECURE_WINDOW" }
+                activity.setContent { KapitMobileApp(presentation.value, MobileActions { commands += it }) }
+            }
+        }
+        await("A11Y_APP_WINDOW_UNAVAILABLE") { tree { it.packageName?.toString() == context.packageName } }
+    }
+
+    private fun update(state: MobileUiState) {
+        instrumentation.runOnMainSync { presentation.value = state }
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(150)
+    }
+
+    private fun serviceReady(): Boolean {
+        val manager = context.getSystemService(AccessibilityManager::class.java)
+        if (!manager.isEnabled || !manager.isTouchExplorationEnabled) return false
+        val found = manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).singleOrNull {
+            ComponentName.unflattenFromString(it.id) == ComponentName(TALKBACK_PACKAGE, TALKBACK_CLASS)
+        } ?: return false
+        return found.resolveInfo.serviceInfo.packageName == TALKBACK_PACKAGE && found.resolveInfo.serviceInfo.name == TALKBACK_CLASS &&
+            found.flags and AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS != 0
+    }
+
+    private fun navigateTo(target: (AccessibilityNodeInfo) -> Boolean) {
+        check(serviceReady()) { "A11Y_SERVICE_LOST" }
+        combo(KeyEvent.KEYCODE_DPAD_LEFT, control = true) // TalkBack Default: first item.
+        await("A11Y_FIRST_FOCUS_UNAVAILABLE") { focusIdentity() != null }
+        val navigationDeadline = minOf(deadline, SystemClock.elapsedRealtime() + 35_000)
+        repeat(96) {
+            if (focused(target)) return
+            check(SystemClock.elapsedRealtime() < navigationDeadline) { "A11Y_NAVIGATION_BUDGET" }
+            move(KeyEvent.KEYCODE_DPAD_RIGHT)
+        }
+        error("A11Y_TARGET_NOT_REACHED")
+    }
+
+    private fun roundTripFocus() {
+        val original = checkNotNull(focusIdentity()) { "A11Y_ROUNDTRIP_START" }
+        move(KeyEvent.KEYCODE_DPAD_RIGHT)
+        move(KeyEvent.KEYCODE_DPAD_LEFT)
+        await("A11Y_REVERSE_FOCUS_MISMATCH") { focusIdentity() == original }
+    }
+
+    private fun move(key: Int) {
+        val before = focusIdentity()
+        val eventsBefore = focusEvents.get()
+        combo(key)
+        await("A11Y_SERVICE_FOCUS_DID_NOT_MOVE", 2_500) {
+            focusEvents.get() > eventsBefore && focusIdentity()?.let { it != before } == true
+        }
+        if (key == KeyEvent.KEYCODE_DPAD_RIGHT) nextMoves++ else previousMoves++
+    }
+
+    private fun activate(completed: () -> Boolean) {
+        check(focused { it.isEnabled && it.isClickable }) { "A11Y_ACTIVATION_TARGET" }
+        combo(KeyEvent.KEYCODE_ENTER) // TalkBack Default: activate accessibility-focused item.
+        await("A11Y_ACTIVATION_NO_EFFECT", completed = completed)
+        activations++
+    }
+
+    private fun combo(key: Int, control: Boolean = false) {
+        check(serviceReady() && SystemClock.elapsedRealtime() < deadline) { "A11Y_INPUT_PREREQUISITE" }
+        val alt = KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+        val combined = if (control) alt or KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON else alt
+        val start = SystemClock.uptimeMillis()
+        fun inject(action: Int, code: Int, meta: Int) {
+            val event = KeyEvent(start, SystemClock.uptimeMillis(), action, code, 0, meta,
+                KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD)
+            check(automation.injectInputEvent(event, true)) { "A11Y_KEY_INJECTION_FAILED" }
+        }
+        try {
+            inject(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ALT_LEFT, alt)
+            if (control) inject(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_CTRL_LEFT, combined)
+            inject(KeyEvent.ACTION_DOWN, key, combined)
+            inject(KeyEvent.ACTION_UP, key, combined)
+        } finally {
+            try { if (control) inject(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_CTRL_LEFT, alt) }
+            finally { inject(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ALT_LEFT, 0) }
+        }
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(100)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun focused(predicate: (AccessibilityNodeInfo) -> Boolean): Boolean {
+        val node = automation.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY) ?: return false
+        return try { node.packageName?.toString() == context.packageName && node.isVisibleToUser && node.isAccessibilityFocused && predicate(node) }
+        finally { node.recycle() }
+    }
+
+    private fun focusIdentity(): Pair<Int, Int>? {
+        var identity: Pair<Int, Int>? = null
+        focused { identity = it.windowId to it.hashCode(); true }
+        return identity
+    }
+
+    /** Inspect only the application's platform tree, bounded in memory; never serialize nodes. */
+    @Suppress("DEPRECATION")
+    private fun tree(predicate: (AccessibilityNodeInfo) -> Boolean): Boolean {
+        var remaining = 512
+        fun visit(node: AccessibilityNodeInfo, depth: Int): Boolean {
+            check(--remaining >= 0 && depth <= 32 && node.childCount <= 128) { "A11Y_TREE_BOUND" }
+            if (node.isVisibleToUser && predicate(node)) return true
+            for (index in 0 until node.childCount) {
+                val child = node.getChild(index) ?: continue
+                try { if (visit(child, depth + 1)) return true } finally { child.recycle() }
+            }
+            return false
+        }
+        val windows = automation.windows
+        try {
+            for (window in windows) {
+                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = window.root ?: continue
+                try { if (root.packageName?.toString() == context.packageName && visit(root, 0)) return true }
+                finally { root.recycle() }
+            }
+            return false
+        } finally { windows.forEach { it.recycle() } }
+    }
+
+    private fun hasLabel(node: AccessibilityNodeInfo, label: String): Boolean =
+        listOf(node.text, node.contentDescription, node.hintText).any { value ->
+            value?.toString()?.split('\n')?.any { it == label } == true
+        }
+    private fun button(node: AccessibilityNodeInfo, label: String) = node.className?.toString() == "android.widget.Button" && hasLabel(node, label)
+    private fun edit(node: AccessibilityNodeInfo, label: String) = node.className?.toString() == "android.widget.EditText" && node.isEditable && hasLabel(node, label)
+
+    private fun setSyntheticText(label: String, value: String) {
+        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value) }
+        check(tree { node -> edit(node, label) && node.isEnabled && node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) }) { "A11Y_TEXT_FIXTURE_SETUP" }
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun actionCount(): Int { var count = 0; instrumentation.runOnMainSync { count = commands.size }; return count }
+    private fun assertActions(predicate: (List<MobileAction>) -> Boolean) {
+        var matched = false
+        instrumentation.runOnMainSync { matched = predicate(commands.toList()) }
+        check(matched) { "A11Y_COMMAND_SEQUENCE" }
+    }
+    private fun await(code: String, timeout: Long = 5_000, completed: () -> Boolean) {
+        val end = minOf(deadline, SystemClock.elapsedRealtime() + timeout)
+        do { if (completed()) return; SystemClock.sleep(50) } while (SystemClock.elapsedRealtime() < end)
+        error(code)
+    }
+
+    private val evidenceFile get() = File(context.noBackupFilesDir, "m2-accessibility-${testName.methodName}.json")
+    private fun finishScenario() {
+        check(serviceReady() && nextMoves > 0 && activations > 0 && focusEvents.get() > 0) { "A11Y_SERVICE_EVIDENCE_INCOMPLETE" }
+        val evidence = JSONObject().put("schema", 1).put("method", testName.methodName)
+            .put("talkback_component", "$TALKBACK_PACKAGE/$TALKBACK_CLASS").put("talkback_version_code", versionCode)
+            .put("talkback_version_name", versionName).put("android_api", Build.VERSION.SDK_INT).put("android_build", Build.FINGERPRINT)
+            .put("native_enabled_spoken_service", true).put("native_touch_exploration", true)
+            .put("keymap_prerequisite", "default-alt").put("next_focus_moves", nextMoves).put("previous_focus_moves", previousMoves)
+            .put("observed_app_accessibility_focus_events", focusEvents.get()).put("verified_activations", activations)
+            .put("platform_assertions_passed", true).put("scenario_passed", true)
+            .put("synthetic_presentation", true).put("actual_authentication", false).put("touch_gestures", false).put("human_listening", false)
+        val bytes = evidence.toString().toByteArray(Charsets.UTF_8)
+        check(bytes.size <= 2048 && !evidenceFile.exists()) { "A11Y_EVIDENCE_BOUND" }
+        val file = AtomicFile(evidenceFile); val stream = file.startWrite()
+        try { stream.write(bytes); file.finishWrite(stream) }
+        catch (failure: Exception) { file.failWrite(stream); throw failure }
+    }
+
+    private fun workspace() = MobileUiState(accountGeneration = 7, access = MobileAccess.READY, localDataLoaded = true,
+        context = AccountContextUi("Synthetic author", "Synthetic organization", "Synthetic unit", "Synthetic channel", "DEMO-REDUCED", "Synthetic fixture lease", true),
+        capabilities = MobileCapabilities(unlock = true, saveDraft = true, queueSubmission = true))
+    private fun editor(form: MaintenanceForm) = workspace().copy(screen = MobileScreen.EDITOR,
+        editor = EditorUi("synthetic-accessibility-draft", 3, form, estimatedServerTimeMillis = 1792195200000L))
+    private fun validForm() = MaintenanceForm("2026-10-17T00:00:00Z", MaintenanceCategory.WATER_SUPPLY, MaintenanceUrgency.ROUTINE,
+        MaintenanceArea.A, "Synthetic accessibility site", "Synthetic author", "Synthetic maintenance fixture", MaintenanceAssistance.INSPECTION)
+
+    companion object {
+        private const val TALKBACK_PACKAGE = "com.google.android.marvin.talkback"
+        private const val TALKBACK_CLASS = "com.google.android.marvin.talkback.TalkBackService"
+        private val METHODS = setOf("talkBackSignInPasswordErrorsAndActivation", "talkBackEditorValidationAndFieldNavigation",
+            "talkBackConfirmationRequiresExplicitQueueAndKeepsLockAvailable", "talkBackOfflineOutboxDistinguishesReceiptAndDisabledRetry",
+            "talkBackLockedAndExpiredAccessExposeRecoveryActionsOnly")
+    }
+}

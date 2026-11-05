@@ -1,0 +1,44 @@
+{
+  "contract": "TASK-120 batch decision binding (plan §5.1); changed inputs invalidate approval",
+  "candidate_set_response": {
+    "revision_id": "33333333-3333-4333-8333-333333333333",
+    "revision_no": 1,
+    "policy_version": "demo-policy-v1",
+    "policy_hash": "c02af7aae067bfb2705e4344337adba311810325168c0f932d41c46aec024986",
+    "scope_context_hash": "ead096b0a9fff33dd24a1ba4468c9a046bf59fa946101832c13eb02040410542",
+    "candidates": [
+      {
+        "variant_id": "44444444-4444-4444-8444-000000000001",
+        "profile": "DEMO-FULL",
+        "candidate_hash": "<sha256 of M3 candidate digest input>",
+        "channel_ids": [
+          "aaaaaaaa-0000-4000-8000-000000000001"
+        ]
+      },
+      {
+        "variant_id": "44444444-4444-4444-8444-000000000003",
+        "profile": "DEMO-SUMMARY",
+        "candidate_hash": "<sha256>",
+        "channel_ids": [
+          "aaaaaaaa-0000-4000-8000-000000000001",
+          "aaaaaaaa-0000-4000-8000-000000000003"
+        ]
+      }
+    ]
+  },
+  "decision_request": {
+    "operation_id": "55555555-5555-4555-8555-555555555555",
+    "action": "APPROVE",
+    "approve_profiles": [
+      "DEMO-SUMMARY"
+    ],
+    "expected": "<exactly the candidate_set_response>",
+    "reason": null
+  },
+  "rules": [
+    "The request must cover the job's complete candidate set; unselected profiles are recorded as withheld.",
+    "M3 candidate digest input adds scope_context_hash, policy_epoch and scope_epoch to the legacy input; the legacy digest is unchanged.",
+    "Per-variant ReviewDecision.operation_id = uuid5(batch.operation_id, variant_id).",
+    "RETURN and REJECT apply to the whole set and require reason."
+  ]
+}

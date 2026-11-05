@@ -1,0 +1,83 @@
+{
+  "status": "TASK-073 synthetic interoperability fixture; no private key serialized; not an unexpired live challenge or hardware attestation",
+  "algorithm": "SHA256withECDSA",
+  "curve": "secp256r1",
+  "public_key_spki_base64url": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwdxdB4xaGyHlOuu9T6l7M0NFdpGpc9OdoZ9aYqEeakSS9pWadBCXjFUyy5-PQvla1Zm_f9ihGcgYuCdJ4e1VAg",
+  "public_key_sha256": "ef3fafe1a6bda32cf3f77b5d00a04423855b80569f52b64a6727330eca8c123c",
+  "vectors": [
+    {
+      "id": "new_enrollment",
+      "binding": {
+        "action": "NEW_ENROLLMENT",
+        "challenge_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "user_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "organization_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "enrollment_id": null,
+        "installation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "key_fingerprint": "ef3fafe1a6bda32cf3f77b5d00a04423855b80569f52b64a6727330eca8c123c",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "expires_unix": 1792209720
+      },
+      "proof_message": "KAPIT-C2-MOBILE-PROOF-V1\nNEW_ENROLLMENT\nbbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\ncccccccc-cccc-4ccc-8ccc-cccccccccccc\ndddddddd-dddd-4ddd-8ddd-dddddddddddd\n-\naaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nef3fafe1a6bda32cf3f77b5d00a04423855b80569f52b64a6727330eca8c123c\nAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\n1792209720\n",
+      "proof_utf8_hex": "4b415049542d43322d4d4f42494c452d50524f4f462d56310a4e45575f454e524f4c4c4d454e540a62626262626262622d626262622d346262622d386262622d6262626262626262626262620a63636363636363632d636363632d346363632d386363632d6363636363636363636363630a64646464646464642d646464642d346464642d386464642d6464646464646464646464640a2d0a61616161616161612d616161612d346161612d386161612d6161616161616161616161610a656633666166653161366264613332636633663737623564303061303434323338353562383035363966353262363461363732373333306563613863313233630a41414543417751464267634943516f4c4441304f4478415245684d554652595847426b61477877644868380a313739323230393732300a",
+      "signature_der_base64url": "MEYCIQDY0EkGGNZhevnxpz2NQqcWc02sIYr8u6apVckivdEPZAIhALvuRr-UGMvHMLhzD4HYAwM0OmVXqZdtE059AZVJap5m",
+      "signature_expected_valid": true
+    },
+    {
+      "id": "reauthenticate",
+      "binding": {
+        "action": "REAUTHENTICATE",
+        "challenge_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "user_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "organization_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "enrollment_id": "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "installation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "key_fingerprint": "ef3fafe1a6bda32cf3f77b5d00a04423855b80569f52b64a6727330eca8c123c",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "expires_unix": 1792209720
+      },
+      "proof_message": "KAPIT-C2-MOBILE-PROOF-V1\nREAUTHENTICATE\nbbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\ncccccccc-cccc-4ccc-8ccc-cccccccccccc\ndddddddd-dddd-4ddd-8ddd-dddddddddddd\n11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa\naaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\nef3fafe1a6bda32cf3f77b5d00a04423855b80569f52b64a6727330eca8c123c\nAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\n1792209720\n",
+      "proof_utf8_hex": "4b415049542d43322d4d4f42494c452d50524f4f462d56310a524541555448454e5449434154450a62626262626262622d626262622d346262622d386262622d6262626262626262626262620a63636363636363632d636363632d346363632d386363632d6363636363636363636363630a64646464646464642d646464642d346464642d386464642d6464646464646464646464640a31313131313131312d616161612d346161612d386161612d6161616161616161616161610a61616161616161612d616161612d346161612d386161612d6161616161616161616161610a656633666166653161366264613332636633663737623564303061303434323338353562383035363966353262363461363732373333306563613863313233630a41414543417751464267634943516f4c4441304f4478415245684d554652595847426b61477877644868380a313739323230393732300a",
+      "signature_der_base64url": "MEUCIH9JJY2HOUhfobzdcR89YzSJPFa3fiQR8CPDl1bQktDAAiEArYUcVugdNil5qTcCNzRhnKX0UE83IOlGz74co9Ci8Io",
+      "signature_expected_valid": true
+    }
+  ],
+  "tamper_cases": [
+    {
+      "id": "different_action",
+      "replace_line": 1,
+      "replacement": "REAUTHENTICATE"
+    },
+    {
+      "id": "different_user",
+      "replace_line": 3,
+      "replacement": "cccccccc-cccc-4ccc-8ccc-cccccccccccd"
+    },
+    {
+      "id": "different_enrollment",
+      "replace_line": 5,
+      "replacement": "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    },
+    {
+      "id": "different_expiry",
+      "replace_line": 9,
+      "replacement": "1792209721"
+    },
+    {
+      "id": "missing_final_lf",
+      "remove_final_lf": true
+    },
+    {
+      "id": "crlf_instead_of_lf",
+      "replace_lf_with_crlf": true
+    }
+  ],
+  "encoding_rejections": [
+    "padded_base64url",
+    "noncanonical_base64url",
+    "wrong_curve",
+    "trailing_spki_bytes",
+    "raw_jws_signature_instead_of_der",
+    "extra_signature_der_bytes"
+  ]
+}

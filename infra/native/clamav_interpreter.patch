@@ -1,0 +1,533 @@
+--- a/libclamav/scanners.c
++++ b/libclamav/scanners.c
+@@ -3309,6 +3309,12 @@
+ 
+         while (fpt) {
+             if (fpt->offset > 0) {
++                if (cli_kapit_active_v1()) {
++                    /* Embedded non-root recognition is outside this image-only ABI. */
++                    cli_kapit_observe_v1(CL_EFORMAT);
++                    nret = CL_EFORMAT;
++                    break;
++                }
+                 bool type_has_been_handled = true;
+ 
+                 /*
+@@ -4124,9 +4130,34 @@
+  * @return true      We found a reason to goto done.
+  * @return false     The scan must go on.
+  */
++/* KAPIT strict ABI 1: Linux/GCC-or-Clang only, new derived artifact.
++ * Faults are sticky before upstream permissive normalization.  No upstream
++ * API behavior changes unless the separate strict entrypoint is active.
++ */
++#if defined(__linux__) && (defined(__GNUC__) || defined(__clang__))
++static __thread struct {
++    int active, fault, raw, image, complete;
++    cl_fmap_t *root;
++} kapit_strict;
++#else
++#error KAPIT strict scanner requires the reviewed Linux compiler ABI
++#endif
++
++void cli_kapit_observe_v1(cl_error_t result)
++{
++    if (kapit_strict.active && result != CL_CLEAN && result != CL_VIRUS)
++        kapit_strict.fault = 1;
++}
++
++int cli_kapit_active_v1(void) { return kapit_strict.active; }
++
+ static inline bool result_should_goto_done(cli_ctx *ctx, cl_error_t result_in, cl_error_t *result_out)
+ {
+     bool halt_scan = false;
++
++    cli_kapit_observe_v1(result_in);
++    if (kapit_strict.active && (ctx == NULL || result_out == NULL || ctx->abort_scan))
++        kapit_strict.fault = 1;
+ 
+     if (NULL == ctx || NULL == result_out) {
+         cli_dbgmsg("Invalid arguments for file scan result check.\n");
+@@ -4213,6 +4244,7 @@
+ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
+ {
+     cl_error_t ret = CL_CLEAN;
++    bool kapit_layer_complete = false;
+     cl_error_t cache_check_result = CL_VIRUS;
+     bool cache_enabled = true;
+     cl_error_t verdict_at_this_level;
+@@ -4314,6 +4346,12 @@
+         cli_dbgmsg("cli_magic_scan: returning %d %s (no post, no cache)\n", ret, __AT__);
+         goto early_ret;
+     }
++    if (kapit_strict.active &&
++        type != CL_TYPE_PNG && type != CL_TYPE_JPEG) {
++        kapit_strict.fault = 1;
++        ret = CL_EFORMAT;
++        goto early_ret;
++    }
+     filetype = cli_ftname(type);
+ 
+     /* set current layer to the type we found */
+@@ -4796,6 +4834,8 @@
+                      * Parse PNG files, checking for exploits and other file format issues.
+                      */
+                     ret = cli_parsepng(ctx); /* PNG parser detects a couple CVE's as well as Broken.Media */
++                    cli_kapit_observe_v1(ret);
++                    if (kapit_strict.active && ctx->fmap == kapit_strict.root && ret == CL_CLEAN) kapit_strict.image = 1;
+                     if (CL_SUCCESS != ret) {
+                         // do not calculate the fuzzy image hash if parsing failed, or a heuristic alert occurred.
+                         break;
+@@ -4820,6 +4860,8 @@
+                      * JPEG 2000 is not checked by cli_parsejpeg.
+                      */
+                     ret = cli_parsejpeg(ctx); /* JPG parser detects MS04-028 exploits as well as Broken.Media */
++                    cli_kapit_observe_v1(ret);
++                    if (kapit_strict.active && ctx->fmap == kapit_strict.root && ret == CL_CLEAN) kapit_strict.image = 1;
+                     if (CL_SUCCESS != ret) {
+                         // do not calculate the fuzzy image hash if parsing failed, or a heuristic alert occurred.
+                         break;
+@@ -4933,6 +4975,8 @@
+     /* CL_TYPE_HTML: raw HTML files are not scanned, unless safety measure activated via DCONF */
+     if (type != CL_TYPE_IGNORED && (type != CL_TYPE_HTML || !(SCAN_PARSE_HTML) || !(DCONF_DOC & DOC_CONF_HTML_SKIPRAW)) && !ctx->engine->sdb) {
+         ret = scanraw(ctx, type, typercg, &dettype, hash);
++        cli_kapit_observe_v1(ret);
++        if (kapit_strict.active && ctx->fmap == kapit_strict.root && ret == CL_CLEAN) kapit_strict.raw = 1;
+ 
+         // Evaluate the result from the scan to see if it end the scan of this layer early,
+         // and to decid if we should propagate an error or not.
+@@ -5006,6 +5050,8 @@
+     }
+ 
+ done:
++    kapit_layer_complete = true;
++    if (kapit_strict.active && ctx->fmap == kapit_strict.root) kapit_strict.complete = 1;
+     // Filter the result from the parsers so we don't propagate non-fatal errors.
+     // And to convert CL_VERIFIED -> CL_CLEAN
+     (void)result_should_goto_done(ctx, ret, &ret);
+@@ -5083,6 +5129,8 @@
+     }
+ 
+ early_ret:
++    cli_kapit_observe_v1(ret);
++    if (kapit_strict.active && !kapit_layer_complete) kapit_strict.fault = 1;
+ 
+     if ((ctx->engine->keeptmp) && (NULL != old_temp_path)) {
+         /* Use rmdir to remove empty tmp subdirectories. If rmdir fails, it wasn't empty. */
+@@ -5198,6 +5246,7 @@
+                map->len, offset, length);
+ 
+     if (offset >= map->len) {
++        cli_kapit_observe_v1(CL_EFORMAT);
+         cli_dbgmsg("magic_scan_nested_fmap_type: Invalid offset: %zu\n", offset);
+         goto done;
+     }
+@@ -5206,23 +5255,27 @@
+         length = map->len - offset;
+ 
+     if (length > map->len - offset) {
++        cli_kapit_observe_v1(CL_EREAD);
+         cli_dbgmsg("magic_scan_nested_fmap_type: Data truncated: %zu -> %zu\n",
+                    length, map->len - offset);
+         length = map->len - offset;
+     }
+ 
+     if (length <= 5) {
++        cli_kapit_observe_v1(CL_EFORMAT);
+         cli_dbgmsg("magic_scan_nested_fmap_type: Small data (%zu bytes)\n", length);
+         goto done;
+     }
+ 
+     new_map = fmap_duplicate(map, offset, length, name);
+     if (NULL == new_map) {
++        cli_kapit_observe_v1(CL_EMEM);
+         cli_dbgmsg("magic_scan_nested_fmap_type: Failed to duplicate fmap for scan of fmap subsection\n");
+         goto done;
+     }
+ 
+     status = cli_recursion_stack_push(ctx, new_map, type, false, attributes); /* Perform scan with child fmap */
++    cli_kapit_observe_v1(status);
+     if (CL_SUCCESS != status) {
+         cli_dbgmsg("magic_scan_nested_fmap_type: Failed to add map to recursion stack for magic scan.\n");
+         goto done;
+@@ -5248,6 +5301,7 @@
+ 
+     cli_dbgmsg("cli_magic_scan_nested_fmap_type: [%zu, +%zu)\n", offset, length);
+     if (offset >= map->len) {
++        cli_kapit_observe_v1(CL_EFORMAT);
+         cli_dbgmsg("Invalid offset: %zu\n", offset);
+         return CL_CLEAN;
+     }
+@@ -5774,6 +5828,37 @@
+     return scan_common(map, filename, virname, scanned, engine, scanoptions, context);
+ }
+ 
++unsigned int cl_kapit_strict_abi_v1(void)
++{
++    return 1;
++}
++
++cl_error_t cl_kapit_scanmap_strict_v1(cl_fmap_t *map, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context)
++{
++    cl_error_t result;
++    int fault;
++    if (kapit_strict.active) { kapit_strict.fault = 1; return CL_EARG; }
++    if (!map || !engine || !scanoptions || !virname || !scanned || filename || context ||
++        map->len <= 5 || map->len > 5242880 ||
++        !(engine->engine_options & ENGINE_OPTIONS_DISABLE_CACHE) ||
++        (engine->engine_options & ENGINE_OPTIONS_FORCE_TO_DISK) ||
++        cl_engine_get_num(engine, CL_ENGINE_BYTECODE_MODE, NULL) != CL_BYTECODE_MODE_INTERPRETER ||
++        engine->keeptmp || engine->sdb ||
++        engine->cb_pre_cache || engine->cb_pre_scan || engine->cb_post_scan || engine->cb_file_inspection || engine->cb_file_props ||
++        scanoptions->general != CL_SCAN_GENERAL_HEURISTICS ||
++        scanoptions->parse != CL_SCAN_PARSE_IMAGE ||
++        scanoptions->heuristic != (CL_SCAN_HEURISTIC_EXCEEDS_MAX | CL_SCAN_HEURISTIC_BROKEN_MEDIA) ||
++        scanoptions->mail || scanoptions->dev) return CL_EARG;
++    memset(&kapit_strict, 0, sizeof(kapit_strict));
++    kapit_strict.active = 1;
++    kapit_strict.root = map;
++    result = cl_scanmap_callback(map, NULL, virname, scanned, engine, scanoptions, NULL);
++    fault = kapit_strict.fault || !kapit_strict.raw || !kapit_strict.image || !kapit_strict.complete;
++    memset(&kapit_strict, 0, sizeof(kapit_strict));
++    if (result != CL_CLEAN) return result;
++    return fault ? CL_ERROR : CL_CLEAN;
++}
++
+ cl_error_t cli_magic_scan_file(const char *filename, cli_ctx *ctx, const char *original_name, uint32_t attributes)
+ {
+     int fd         = -1;
+--- a/libclamav/clamav.h
++++ b/libclamav/clamav.h
+@@ -1338,6 +1338,13 @@
+  */
+ extern cl_error_t cl_scanmap_callback(cl_fmap_t *map, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context);
+ 
++/* KAPIT 1.4.6-derived strict ABI; never substitute the upstream scan API. */
++extern unsigned int cl_kapit_strict_abi_v1(void);
++/* Internal-only hooks, hidden by the ELF version script. */
++extern void cli_kapit_observe_v1(cl_error_t result);
++extern int cli_kapit_active_v1(void);
++extern cl_error_t cl_kapit_scanmap_strict_v1(cl_fmap_t *map, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context);
++
+ /* ----------------------------------------------------------------------------
+  * Crypto/hashing functions
+  */
+--- a/libclamav/png.c
++++ b/libclamav/png.c
+@@ -112,6 +112,7 @@
+         offset += PNG_CHUNK_LENGTH_SIZE;
+ 
+         if (chunk_data_length > (uint64_t)0x7fffffff) {
++            cli_kapit_observe_v1(CL_EFORMAT);
+             cli_dbgmsg("PNG: invalid chunk length (too large): 0x" STDx64 "\n", chunk_data_length);
+             if (SCAN_HEURISTIC_BROKEN_MEDIA) {
+                 status = cli_append_potentially_unwanted(ctx, "Heuristics.Broken.Media.PNG.InvalidChunkLength");
+@@ -120,6 +121,7 @@
+         }
+ 
+         if (fmap_readn(map, chunk_type, offset, PNG_CHUNK_TYPE_SIZE) != PNG_CHUNK_TYPE_SIZE) {
++            cli_kapit_observe_v1(CL_EFORMAT);
+             cli_dbgmsg("PNG: EOF while reading chunk type\n");
+             if (SCAN_HEURISTIC_BROKEN_MEDIA) {
+                 status = cli_append_potentially_unwanted(ctx, "Heuristics.Broken.Media.PNG.EOFReadingChunkType");
+@@ -137,6 +139,7 @@
+         if (chunk_data_length > 0) {
+             ptr = (uint8_t *)fmap_need_off_once(map, offset, chunk_data_length);
+             if (NULL == ptr) {
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 cli_dbgmsg("PNG: Unexpected early end-of-file.\n");
+                 if (SCAN_HEURISTIC_BROKEN_MEDIA) {
+                     status = cli_append_potentially_unwanted(ctx, "Heuristics.Broken.Media.PNG.EOFReadingChunk");
+@@ -151,12 +154,14 @@
+              | IHDR |
+              *------*/
+             if (chunk_data_length != 13) {
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 cli_dbgmsg("PNG: invalid IHDR length: " STDu64 "\n", chunk_data_length);
+                 break;
+             } else {
+                 width  = be32_to_host(*(uint32_t *)ptr);
+                 height = be32_to_host(*(uint32_t *)(ptr + 4));
+                 if (width == 0 || height == 0 || width > (uint64_t)0x7fffffff || height > (uint64_t)0x7fffffff) {
++                    cli_kapit_observe_v1(CL_EFORMAT);
+                     cli_dbgmsg("PNG: invalid image dimensions: width = " STDu64 ", height = " STDu64 "\n", width, height);
+                     break;
+                 }
+@@ -167,9 +172,11 @@
+                 interlace_method         = (uint32_t)ptr[12];
+ 
+                 if (compression_method != 0) {
++                    cli_kapit_observe_v1(CL_EFORMAT);
+                     cli_dbgmsg("PNG: invalid compression method (%u)\n", compression_method);
+                 }
+                 if (filter_method != 0) {
++                    cli_kapit_observe_v1(CL_EFORMAT);
+                     cli_dbgmsg("PNG: invalid filter method (%u)\n", filter_method);
+                 }
+                 switch (bit_depth) {
+@@ -177,6 +184,7 @@
+                     case 2:
+                     case 4:
+                         if (color_type == 2 || color_type == 4 || color_type == 6) { /* RGB or GA or RGBA */
++                            cli_kapit_observe_v1(CL_EFORMAT);
+                             cli_dbgmsg("PNG: invalid sample depth (%u)\n", bit_depth);
+                             break;
+                         }
+@@ -185,11 +193,13 @@
+                         break;
+                     case 16:
+                         if (color_type == 3) { /* palette */
++                            cli_kapit_observe_v1(CL_EFORMAT);
+                             cli_dbgmsg("PNG: invalid sample depth (%u)\n", bit_depth);
+                             break;
+                         }
+                         break;
+                     default:
++                        cli_kapit_observe_v1(CL_EFORMAT);
+                         cli_dbgmsg("PNG: invalid sample depth (%u)\n", bit_depth);
+                         break;
+                 }
+@@ -217,6 +227,7 @@
+              | PLTE |
+              *------*/
+             if (have_PLTE) {
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 cli_dbgmsg("PNG: More than one PTLE chunk found in a PNG file, which is not valid\n");
+             }
+ 
+@@ -228,6 +239,7 @@
+             }
+ 
+             if (color_type == 0 || color_type == 4) {
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 cli_dbgmsg("PNG: PTLE chunk found in a PNG file with color type set to (%u), which is not valid\n", color_type);
+             }
+             have_PLTE = true;
+@@ -251,6 +263,7 @@
+ 
+             if (chunk_data_length != 9) {
+                 // Could it be CVE-2007-2365?
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 cli_dbgmsg("PNG: invalid pHYs length\n");
+             }
+         } else if (strcmp(chunk_type, "tRNS") == 0) {
+@@ -260,6 +273,7 @@
+         }
+ 
+         if (fmap_readn(map, &chunk_crc, offset, PNG_CHUNK_CRC_SIZE) != PNG_CHUNK_CRC_SIZE) {
++            cli_kapit_observe_v1(CL_EFORMAT);
+             cli_dbgmsg("PNG: EOF while reading chunk crc\n");
+             if (SCAN_HEURISTIC_BROKEN_MEDIA) {
+                 status = cli_append_potentially_unwanted(ctx, "Heuristics.Broken.Media.PNG.EOFReadingChunkCRC");
+@@ -279,6 +293,7 @@
+     }
+ 
+     if (!have_IEND) {
++        cli_kapit_observe_v1(CL_EFORMAT);
+         cli_dbgmsg("PNG: EOF before IEND chunk!\n");
+     }
+ 
+--- a/libclamav/jpeg.c
++++ b/libclamav/jpeg.c
+@@ -318,6 +318,7 @@
+     uint8_t buff[50]; /* 50 should be sufficient for now */
+     uint16_t len_u16;
+     unsigned int offset = 0, i, len, segment = 0;
++    bool kapit_sos = false;
+     bool found_comment = false;
+     bool found_app     = false;
+ 
+@@ -577,6 +578,7 @@
+                             break;
+                     } while (status == CL_CLEAN);
+ 
++                    cli_kapit_observe_v1(status);
+                     if (status == CL_BREAK) {
+                         status = CL_CLEAN;
+                     }
+@@ -652,6 +654,7 @@
+                 goto done;
+ 
+             case JPEG_MARKER_SEGMENT_SOS_START_OF_SCAN: /* SOS */
++                kapit_sos = true;
+                 cli_dbgmsg(" Start of Scan (SOS) segment marker\n");
+                 if (!found_app) {
+                     cli_dbgmsg(" Found the Start-of-Scan segment without identifying the JPEG application type.\n");
+@@ -693,6 +696,7 @@
+                 break;
+ 
+             default:
++                cli_kapit_observe_v1(CL_EFORMAT);
+                 /* Some unknown marker we don't presently handle, don't worry about it. */
+                 break;
+         }
+@@ -701,5 +705,7 @@
+     }
+ 
+ done:
++    cli_kapit_observe_v1(status);
++    if (!kapit_sos) cli_kapit_observe_v1(CL_EFORMAT);
+     return status;
+ }
+--- a/libclamav/matcher.c
++++ b/libclamav/matcher.c
+@@ -1116,6 +1116,7 @@
+         if (!target_ac_root) {
+             // Don't have a matcher root for either generic signatures or target-specific signatures.
+             // Nothing to do!
++            cli_kapit_observe_v1(CL_EMALFDB);
+             ret = CL_CLEAN;
+             goto done;
+         }
+@@ -1166,6 +1167,7 @@
+ 
+     if (1 == info.status && i == 1) {
+         ret = cli_check_auth_header(ctx, &(info.exeinfo));
++            cli_kapit_observe_v1(ret);
+         if (ret == CL_VIRUS || ret == CL_VERIFIED) {
+             goto done;
+         }
+@@ -1286,8 +1288,11 @@
+         }
+ 
+         bytes = MIN(ctx->fmap->len - offset, SCANBUFF);
+-        if (!(buff = fmap_need_off_once(ctx->fmap, offset, bytes)))
+-            break;
++        if (!(buff = fmap_need_off_once(ctx->fmap, offset, bytes))) {
++            cli_kapit_observe_v1(CL_EREAD);
++            ret = CL_EREAD;
++            goto done;
++        }
+         if (ctx->scanned)
+             *ctx->scanned += bytes / CL_COUNT_PRECISION;
+ 
+@@ -1298,6 +1303,7 @@
+                               &info, ftype, ftoffset, acmode, PCRE_SCAN_FMAP, acres, ctx->fmap,
+                               bm_offsets_table_initialized ? &bm_offsets_table : NULL,
+                               &target_pcre_offsets_table, ctx);
++            if ((int)ret < CL_TYPENO) cli_kapit_observe_v1(ret);
+             if (ret == CL_VIRUS || ret == CL_EMEM) {
+                 goto done;
+             }
+@@ -1310,6 +1316,7 @@
+                               &info, ftype, ftoffset, acmode, PCRE_SCAN_FMAP, acres, ctx->fmap,
+                               NULL,
+                               &generic_pcre_offsets_table, ctx);
++            if ((int)ret < CL_TYPENO) cli_kapit_observe_v1(ret);
+             if (ret == CL_VIRUS || ret == CL_EMEM) {
+                 goto done;
+             } else if ((acmode & AC_SCAN_FT) && ((cli_file_t)ret >= CL_TYPENO)) {
+@@ -1382,6 +1389,7 @@
+ 
+             /* Do hash scan checking hash sigs with specific size */
+             ret = cli_hm_scan(digest[hashtype], ctx->fmap->len, &virname, hdb, hashtype);
++            cli_kapit_observe_v1(ret);
+             if (ret == CL_VIRUS) {
+                 /* Matched with size-based hash ... */
+                 ret = cli_append_virus(ctx, virname);
+@@ -1392,6 +1400,7 @@
+ 
+             /* Do hash scan checking hash sigs with wildcard size */
+             ret = cli_hm_scan_wild(digest[hashtype], &virname_w, hdb, hashtype);
++            cli_kapit_observe_v1(ret);
+             if (ret == CL_VIRUS) {
+                 /* Matched with size-agnostic hash ... */
+                 ret = cli_append_virus(ctx, virname_w);
+@@ -1409,6 +1418,7 @@
+     if (NULL != target_ac_root) {
+         if (ret != CL_VIRUS) {
+             ret = cli_exp_eval(ctx, target_ac_root, &target_ac_data, &info, (const char *)refhash);
++            cli_kapit_observe_v1(ret);
+         }
+     }
+ 
+@@ -1416,6 +1426,7 @@
+     if (NULL != generic_ac_root) {
+         if (ret != CL_VIRUS) {
+             ret = cli_exp_eval(ctx, generic_ac_root, &generic_ac_data, &info, (const char *)refhash);
++            cli_kapit_observe_v1(ret);
+         }
+     }
+ 
+--- a/libclamav/libclamav.map
++++ b/libclamav/libclamav.map
+@@ -42,6 +42,8 @@
+     cl_fmap_open_handle;
+     cl_fmap_open_memory;
+     cl_scanmap_callback;
++    cl_kapit_scanmap_strict_v1;
++    cl_kapit_strict_abi_v1;
+     cl_fmap_close;
+     cl_always_gen_section_hash;
+     cl_engine_set_stats_set_cbdata;
+--- a/libclamav/matcher-pcre.c
++++ b/libclamav/matcher-pcre.c
+@@ -557,6 +557,8 @@
+     int options     = 0;
+     uint32_t offset = 0;
+ 
++    if (root->pcre_metas && (!root->pcre_metatable || (ctx && ctx->dconf && !(ctx->dconf->pcre & PCRE_CONF_SUPPORT))))
++        cli_kapit_observe_v1(CL_EARG);
+     if ((root->pcre_metas == 0) || (!root->pcre_metatable) || (ctx && ctx->dconf && !(ctx->dconf->pcre & PCRE_CONF_SUPPORT)))
+         return CL_SUCCESS;
+ 
+@@ -569,6 +571,7 @@
+ 
+         /* skip checking and running disabled pcres */
+         if (pm->flags & CLI_PCRE_DISABLED) {
++            cli_kapit_observe_v1(CL_EARG);
+             cli_dbgmsg("cli_pcre_scanbuf: skipping disabled regex /%s/\n", pd->expression);
+             continue;
+         }
+@@ -602,8 +605,10 @@
+ 
+         /* adjust the buffer sent to cli_pcre_match for offset and maxshift */
+         if (!data) {
+-            if (cli_pcre_qoff(pm, length, &adjbuffer, &adjshift) != CL_SUCCESS)
++            if (cli_pcre_qoff(pm, length, &adjbuffer, &adjshift) != CL_SUCCESS) {
++                cli_kapit_observe_v1(CL_EARG);
+                 continue;
++            }
+         } else {
+             adjbuffer = data->offset[i];
+             adjshift  = data->shift[i];
+@@ -654,6 +659,8 @@
+             /* performance metrics */
+             cli_event_time_start(p_sigevents, pm->sigtime_id);
+             rc = cli_pcre_match(pd, buffer + adjbuffer, adjlength, offset, options, &p_res);
++            if (rc == 0 || (rc < 0 && rc != PCRE2_ERROR_NOMATCH))
++                cli_kapit_observe_v1(CL_ERROR);
+             cli_event_time_stop(p_sigevents, pm->sigtime_id);
+             /* if debug, generate a match report */
+             if (cli_debug_flag)
+@@ -725,6 +732,7 @@
+ 
+         /* handle error code */
+         if (rc < 0 && p_res.err != CL_SUCCESS) {
++            cli_kapit_observe_v1(p_res.err);
+             ret = p_res.err;
+         }
+ 
+--- a/libclamav/others.c
++++ b/libclamav/others.c
+@@ -857,6 +857,8 @@
+             return engine->bytecode_mode;
+         case CL_ENGINE_DISABLE_CACHE:
+             return engine->engine_options & ENGINE_OPTIONS_DISABLE_CACHE;
++        case CL_ENGINE_DISABLE_PE_STATS:
++            return engine->engine_options & ENGINE_OPTIONS_DISABLE_PE_STATS;
+         case CL_ENGINE_CACHE_SIZE:
+             return engine->cache_size;
+         case CL_ENGINE_STATS_TIMEOUT:
+--- a/libclamav/bytecode.c
++++ b/libclamav/bytecode.c
+@@ -2663,7 +2663,8 @@
+         return CL_SUCCESS;
+     }
+ 
+-    engine->bytecode_mode = CL_BYTECODE_MODE_AUTO;
++    if (engine->bytecode_mode != CL_BYTECODE_MODE_INTERPRETER)
++        engine->bytecode_mode = CL_BYTECODE_MODE_AUTO;
+     cli_detect_environment(&bcs->env);
+     switch (bcs->env.arch) {
+         case arch_i386:

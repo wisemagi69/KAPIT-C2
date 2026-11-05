@@ -1,0 +1,162 @@
+{
+  "contract": "TASK-120 M3 profile projections (docs/m3-implementation-plan.md §4.1, D1/D3/S4, SN8)",
+  "rank": {
+    "DEMO-SUMMARY": 1,
+    "DEMO-REDUCED": 2,
+    "DEMO-FULL": 3
+  },
+  "private_fields_never_projected": [
+    "site_label",
+    "reporter_label",
+    "narrative"
+  ],
+  "keys": {
+    "DEMO-FULL": [
+      "title",
+      "text",
+      "category",
+      "urgency",
+      "area_label",
+      "assistance_requested",
+      "observed_hour",
+      "originating_unit",
+      "verification",
+      "profile"
+    ],
+    "DEMO-REDUCED": [
+      "title",
+      "text",
+      "category",
+      "urgency",
+      "area_label",
+      "assistance_requested",
+      "observed_date",
+      "verification",
+      "profile"
+    ],
+    "DEMO-SUMMARY": [
+      "title",
+      "text",
+      "category",
+      "urgency",
+      "observed_week",
+      "verification",
+      "profile"
+    ]
+  },
+  "text_templates": {
+    "demo-policy-v1": {
+      "DEMO-FULL": "{unit_name} reports {issue} in {area}; {assistance_lower} requested.",
+      "DEMO-REDUCED": "A support unit reports {issue} in {area}; {assistance_lower} requested.",
+      "DEMO-SUMMARY": "A support unit reports {issue}."
+    },
+    "demo-policy-v2": {
+      "DEMO-FULL": "{unit_name} requests maintenance support for {issue} in {area}; {assistance_lower}.",
+      "DEMO-REDUCED": "Maintenance support is requested for {issue} in {area}; {assistance_lower}.",
+      "DEMO-SUMMARY": "Maintenance support is requested for {issue}."
+    }
+  },
+  "source_payload": {
+    "category": "WATER_SUPPLY",
+    "urgency": "PRIORITY",
+    "area_label": "Area B",
+    "assistance_requested": "Repair assistance",
+    "observed_at": "2026-10-21T08:47:13Z",
+    "site_label": "PRIVATE_M3_SITE synthetic pump house",
+    "reporter_label": "PRIVATE_M3_REPORTER synthetic",
+    "narrative": "PRIVATE_M3_NARRATIVE fictional valve leak."
+  },
+  "originating_unit_snapshot": {
+    "code": "SIM-UNIT-02",
+    "name": "Synthetic Water Supply Unit"
+  },
+  "expected": {
+    "demo-policy-v1": {
+      "DEMO-FULL": {
+        "title": "Water supply maintenance request",
+        "text": "Synthetic Water Supply Unit reports a water supply issue in Area B; repair assistance requested.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "area_label": "Area B",
+        "assistance_requested": "Repair assistance",
+        "observed_hour": "2026-10-21T08:00:00Z",
+        "originating_unit": {
+          "code": "SIM-UNIT-02",
+          "name": "Synthetic Water Supply Unit"
+        },
+        "verification": "Human reviewed",
+        "profile": "DEMO-FULL"
+      },
+      "DEMO-REDUCED": {
+        "title": "Water supply maintenance request",
+        "text": "A support unit reports a water supply issue in Area B; repair assistance requested.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "area_label": "Area B",
+        "assistance_requested": "Repair assistance",
+        "observed_date": "2026-10-21",
+        "verification": "Human reviewed",
+        "profile": "DEMO-REDUCED"
+      },
+      "DEMO-SUMMARY": {
+        "title": "Water supply maintenance request",
+        "text": "A support unit reports a water supply issue.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "observed_week": "2026-W43",
+        "verification": "Human reviewed",
+        "profile": "DEMO-SUMMARY"
+      }
+    },
+    "demo-policy-v2": {
+      "DEMO-FULL": {
+        "title": "Water supply maintenance request",
+        "text": "Synthetic Water Supply Unit requests maintenance support for a water supply issue in Area B; repair assistance.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "area_label": "Area B",
+        "assistance_requested": "Repair assistance",
+        "observed_hour": "2026-10-21T08:00:00Z",
+        "originating_unit": {
+          "code": "SIM-UNIT-02",
+          "name": "Synthetic Water Supply Unit"
+        },
+        "verification": "Human reviewed",
+        "profile": "DEMO-FULL"
+      },
+      "DEMO-REDUCED": {
+        "title": "Water supply maintenance request",
+        "text": "Maintenance support is requested for a water supply issue in Area B; repair assistance.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "area_label": "Area B",
+        "assistance_requested": "Repair assistance",
+        "observed_date": "2026-10-21",
+        "verification": "Human reviewed",
+        "profile": "DEMO-REDUCED"
+      },
+      "DEMO-SUMMARY": {
+        "title": "Water supply maintenance request",
+        "text": "Maintenance support is requested for a water supply issue.",
+        "category": "WATER_SUPPLY",
+        "urgency": "PRIORITY",
+        "observed_week": "2026-W43",
+        "verification": "Human reviewed",
+        "profile": "DEMO-SUMMARY"
+      }
+    }
+  },
+  "reduced_v1_equals_current_project": true,
+  "published_at_precision": {
+    "stored": "2026-10-21T09:05:31.123456+00:00",
+    "DEMO-FULL": "2026-10-21T09:00:00+00:00",
+    "DEMO-REDUCED": "2026-10-21T00:00:00+00:00",
+    "DEMO-SUMMARY": "2026-10-19T00:00:00+00:00",
+    "ordering_uses": "stored exact value (server side only)"
+  },
+  "map": {
+    "DEMO-FULL": "fictional area anchor",
+    "DEMO-REDUCED": "fictional area anchor",
+    "DEMO-SUMMARY": null
+  }
+}

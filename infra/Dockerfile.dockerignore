@@ -1,0 +1,17 @@
+**
+!backend/
+!backend/**
+!web/
+!web/dist/
+!web/dist/**
+!infra/
+!infra/**
+**/node_modules/**
+**/__pycache__/**
+**/*.pyc
+.cache/**
+**/.env
+**/.env.*
+**/*.pdf
+KAPIT_C2_AI_Development_Orchestrator_Prompt.md
+infra/*.md

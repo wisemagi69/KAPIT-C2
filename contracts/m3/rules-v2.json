@@ -1,0 +1,71 @@
+{
+  "contract": "TASK-120 RULES_V2 (SN8): same enums, private fields and per-profile key sets as v1; only text wording differs",
+  "rules_v1_current": {
+    "engine": "demo-rules-v1",
+    "template": "demo-maintenance-v1",
+    "profile": "DEMO-REDUCED",
+    "categories": [
+      "INFRASTRUCTURE",
+      "WATER_SUPPLY",
+      "EQUIPMENT"
+    ],
+    "urgencies": [
+      "ROUTINE",
+      "PRIORITY"
+    ],
+    "areas": [
+      "Area A",
+      "Area B",
+      "Area C"
+    ],
+    "assistance": [
+      "Repair assistance",
+      "Inspection",
+      "Replacement parts"
+    ],
+    "date_precision": "day_utc",
+    "private_fields": [
+      "site_label",
+      "reporter_label",
+      "narrative"
+    ]
+  },
+  "rules_v1_hash": "c02af7aae067bfb2705e4344337adba311810325168c0f932d41c46aec024986",
+  "rules_v2": {
+    "engine": "demo-rules-v2",
+    "template": "demo-maintenance-v1",
+    "profile": "DEMO-REDUCED",
+    "categories": [
+      "INFRASTRUCTURE",
+      "WATER_SUPPLY",
+      "EQUIPMENT"
+    ],
+    "urgencies": [
+      "ROUTINE",
+      "PRIORITY"
+    ],
+    "areas": [
+      "Area A",
+      "Area B",
+      "Area C"
+    ],
+    "assistance": [
+      "Repair assistance",
+      "Inspection",
+      "Replacement parts"
+    ],
+    "date_precision": "day_utc",
+    "private_fields": [
+      "site_label",
+      "reporter_label",
+      "narrative"
+    ],
+    "text_templates": {
+      "DEMO-FULL": "{unit_name} requests maintenance support for {issue} in {area}; {assistance_lower}.",
+      "DEMO-REDUCED": "Maintenance support is requested for {issue} in {area}; {assistance_lower}.",
+      "DEMO-SUMMARY": "Maintenance support is requested for {issue}."
+    }
+  },
+  "rules_v2_hash": "c5b9aa0c7a85504fb556a2e7c3106e88166d49ef740f0e4327a7851a60399db7",
+  "key_sets_equal_v1": true
+}

@@ -1,0 +1,53 @@
+# Fixed public offline builder; independent native/runtime approval remains required.
+FROM docker.io/library/rust@sha256:4727898c104ecd2e22d780925832502faee9fe4e70581b8572af081370b315a0 AS dependencies
+ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 SOURCE_DATE_EPOCH=1772496000
+COPY builder-debs/ /opt/builder-debs/
+# Only authenticated fixed Debian bytes, no repository, apt update or download.
+RUN --network=none test "$(df -Pk / | awk 'NR==2 {print $4}')" -ge 2097152 && \
+    test "$(find /opt/builder-debs -mindepth 1 -maxdepth 1 | wc -l)" -eq 18 && \
+    test "$(find /opt/builder-debs -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 18 && \
+    echo '2ae7af1b9a1e9e26edadc63ed927184e1388158b32510dd74bcc36a7fcbf235d  /opt/builder-debs/SHA256SUMS' | sha256sum -c - && \
+    cd /opt/builder-debs && sha256sum -c SHA256SUMS && \
+    echo '1d015cf7c0f25e096a890997e51b4a26376b6882fc351f5e4d814f9e38a11a8e  /var/lib/dpkg/status' | sha256sum -c - && \
+    mkdir -p /tmp/kapit-build-apt /opt/kapit-builder-provenance && \
+    dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > /tmp/kapit-build-apt/baseline && \
+    LC_ALL=C sort /tmp/kapit-build-apt/baseline > /tmp/kapit-build-apt/baseline-sorted && \
+    echo '8299ca428236ff8c647b6ece22ae2d873bb5885b50a1b00b81830e774950ecfc  /tmp/kapit-build-apt/baseline-sorted' | sha256sum -c - && \
+    /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/kapit-build-apt LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive dpkg --install /opt/builder-debs/cmake_3.25.1-1_amd64.deb /opt/builder-debs/cmake-data_3.25.1-1_all.deb /opt/builder-debs/libarchive13_3.6.2-1+deb12u2_amd64.deb /opt/builder-debs/libclang-14-dev_14.0.6-12_amd64.deb /opt/builder-debs/libclang-common-14-dev_14.0.6-12_all.deb /opt/builder-debs/libclang-dev_14.0-55.7~deb12u1_amd64.deb /opt/builder-debs/libclang1-14_14.0.6-12_amd64.deb /opt/builder-debs/libgc1_8.2.2-3_amd64.deb /opt/builder-debs/libjson-c-dev_0.16-2_amd64.deb /opt/builder-debs/libjson-c5_0.16-2_amd64.deb /opt/builder-debs/libjsoncpp25_1.9.5-4_amd64.deb /opt/builder-debs/libllvm14_14.0.6-12_amd64.deb /opt/builder-debs/libobjc-12-dev_12.2.0-14+deb12u1_amd64.deb /opt/builder-debs/libobjc4_12.2.0-14+deb12u1_amd64.deb /opt/builder-debs/librhash0_1.4.3-3_amd64.deb /opt/builder-debs/libuv1_1.44.2-1+deb12u1_amd64.deb /opt/builder-debs/libz3-4_4.8.12-3.1_amd64.deb && \
+    dpkg --audit > /tmp/kapit-build-apt/audit 2>&1 && test ! -s /tmp/kapit-build-apt/audit && \
+    dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\t${db:Status-Status}\n' cmake cmake-data libarchive13 libclang-14-dev libclang-common-14-dev libclang-dev libclang1-14 libgc1 libjson-c-dev libjson-c5 libjsoncpp25 libllvm14 libobjc-12-dev libobjc4 librhash0 libuv1 libz3-4 > /tmp/kapit-build-apt/required-installed && \
+    printf '%b\n' 'cmake\t3.25.1-1\tamd64\tinstalled' 'cmake-data\t3.25.1-1\tall\tinstalled' 'libarchive13\t3.6.2-1+deb12u2\tamd64\tinstalled' 'libclang-14-dev\t1:14.0.6-12\tamd64\tinstalled' 'libclang-common-14-dev\t1:14.0.6-12\tall\tinstalled' 'libclang-dev\t1:14.0-55.7~deb12u1\tamd64\tinstalled' 'libclang1-14\t1:14.0.6-12\tamd64\tinstalled' 'libgc1\t1:8.2.2-3\tamd64\tinstalled' 'libjson-c-dev\t0.16-2\tamd64\tinstalled' 'libjson-c5\t0.16-2\tamd64\tinstalled' 'libjsoncpp25\t1.9.5-4\tamd64\tinstalled' 'libllvm14\t1:14.0.6-12\tamd64\tinstalled' 'libobjc-12-dev\t12.2.0-14+deb12u1\tamd64\tinstalled' 'libobjc4\t12.2.0-14+deb12u1\tamd64\tinstalled' 'librhash0\t1.4.3-3\tamd64\tinstalled' 'libuv1\t1.44.2-1+deb12u1\tamd64\tinstalled' 'libz3-4\t4.8.12-3.1\tamd64\tinstalled' > /tmp/kapit-build-apt/required-expected && \
+    cmp /tmp/kapit-build-apt/required-expected /tmp/kapit-build-apt/required-installed && \
+    dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > /tmp/kapit-build-apt/installed && \
+    LC_ALL=C sort /tmp/kapit-build-apt/installed > /opt/kapit-builder-provenance/toolchain-packages.tsv
+RUN --network=none /bin/sh -ceu 'cmake --version; rustc --version --verbose; cargo --version; cc --version; c++ --version' > /opt/kapit-builder-provenance/toolchain-versions.txt
+RUN --network=none /usr/bin/python3 -I -B -c "import hashlib,json,pathlib; p=pathlib.Path('/opt/kapit-builder-provenance'); h=lambda v:hashlib.sha256(v).hexdigest(); d={'schema':1,'purpose':'offline-builder-toolchain-v1','base_image':'docker.io/library/rust@sha256:4727898c104ecd2e22d780925832502faee9fe4e70581b8572af081370b315a0','builder_packages_sha256':'6c8b1cff196a3097312ac3186a3d241b8da77628b4d1dd034848ffbe1cfdc7b5','baseline_status_sha256':'1d015cf7c0f25e096a890997e51b4a26376b6882fc351f5e4d814f9e38a11a8e','baseline_inventory_sha256':'8299ca428236ff8c647b6ece22ae2d873bb5885b50a1b00b81830e774950ecfc','installed_inventory_sha256':h((p/'toolchain-packages.tsv').read_bytes()),'tool_versions_sha256':h((p/'toolchain-versions.txt').read_bytes()),'installed_status_sha256':h(pathlib.Path('/var/lib/dpkg/status').read_bytes())}; (p/'toolchain-inventory.json').write_text(json.dumps(d,sort_keys=True,separators=(',',':')),encoding='ascii')"
+
+FROM dependencies AS build
+WORKDIR /build
+COPY source.tar.gz /build/source.tar.gz
+RUN --network=none echo '06dbc7adf96e2f6a27c548a841ce83c95360d1e121b106a6f7cf56f282a3c61b  /build/source.tar.gz' | sha256sum -c - && mkdir /build/source && tar -xzf /build/source.tar.gz --strip-components=1 --no-same-owner --no-same-permissions -C /build/source
+COPY patched/libclamav/scanners.c patched/libclamav/clamav.h patched/libclamav/png.c patched/libclamav/jpeg.c patched/libclamav/matcher.c patched/libclamav/libclamav.map patched/libclamav/matcher-pcre.c patched/libclamav/others.c patched/libclamav/bytecode.c /build/source/libclamav/
+RUN --network=none printf '%s\n' '4f41ecf599c6c284827ffcb3f58b841beeab67889cdf827a70dacbdd0ea3f82d  /build/source/libclamav/scanners.c' 'c947b04c0c58d2fb979086c529d51597f780c264fdc54bc861a8be99af23912a  /build/source/libclamav/clamav.h' 'd36ca6492fc94853e837a32805b04e649e2190afdd29be952e8c08c43daff41f  /build/source/libclamav/png.c' 'e6b00f5ce31379e36dafe230ee51a5383d0114d6a4d2c1c00f1829f28adf76df  /build/source/libclamav/jpeg.c' '993d545542d0837c05612c27d3c2e004d14653a329fb610909ca8983c568a0c2  /build/source/libclamav/matcher.c' '34906fd0376b894935c8b3fe885c29c44aa87a05fe721320cc72de53fb7d6aac  /build/source/libclamav/libclamav.map' '6daac53d6451363baf65534f18eb1f4630f53fbc818203f6beb8cc637eee3fd1  /build/source/libclamav/matcher-pcre.c' '506f45a784aa8702e71b0c3d209143a6c3e78b5558943f4090ced04b7692f44b  /build/source/libclamav/others.c' '70a4f0997e5077edd5da360fff3b02c465519e0970681495a241543846326ef6  /build/source/libclamav/bytecode.c' | sha256sum -c -
+RUN --network=none test "$(df -Pk /build | awk 'NR==2 {print $4}')" -ge 2097152 && test -f source/.cargo/config.toml && test -d source/.cargo/vendor && echo '1dcce8d94399e119dac3f48628a45ecb2b87276dfe074bc4d8ea01d0b8881682  source/Cargo.lock' | sha256sum -c - && cmake -S source -B objects -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/clamav -DCMAKE_INSTALL_RPATH='/opt/clamav/lib;/opt/closure/lib' -DENABLE_LIBCLAMAV_ONLY=ON -DENABLE_APP=OFF -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF -DENABLE_UNRAR=OFF -DBYTECODE_RUNTIME=interpreter -DENABLE_STATIC_LIB=OFF -DENABLE_SHARED_LIB=ON && cmake --build objects --parallel 2 && echo '1dcce8d94399e119dac3f48628a45ecb2b87276dfe074bc4d8ea01d0b8881682  source/Cargo.lock' | sha256sum -c - && DESTDIR=/out cmake --install objects
+
+FROM docker.io/library/python@sha256:9bbb8720ae0a24a6ca8dd678bfdf57818fe70caf54c52a53ec01d8db43405056
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent TMPDIR=/scratch LD_LIBRARY_PATH=/opt/clamav/lib:/opt/closure/lib
+# closure/ is an independently inventoried matching-glibc ELF dependency closure
+# under /opt/closure only. No writes over the pinned base interpreter/loader.
+COPY closure/ /opt/closure/
+COPY --from=build /out/opt/clamav/ /opt/clamav/
+COPY wheels/ /opt/wheels/
+RUN --network=none python -I -B -m pip install --no-index --no-deps --only-binary=:all: --require-hashes --no-compile --find-links=/opt/wheels -r /opt/wheels/requirements.txt
+COPY signatures/ /opt/signatures/
+COPY kapit_evidence/ /usr/local/lib/python3.14/site-packages/kapit_evidence/
+COPY runtime.json signature-files.json /opt/evidence/
+# Hash-only packaging check: imports only pure modules, never initializes FFI,
+# Pillow, the kernel helper, stdin, a database, or the native main function.
+RUN --network=none python -I -B -c "from kapit_evidence.evidence_native_worker import load_configuration; load_configuration()"
+WORKDIR /scratch
+USER 65532:65532
+# No VOLUME, HEALTHCHECK, shell command, daemon, updater or external entrypoint.
+# Controller supplies the fixed mode; worker must confine itself before input.
+ENTRYPOINT ["/usr/local/bin/python", "-I", "-B", "-m", "kapit_evidence.evidence_native_worker"]
+CMD []

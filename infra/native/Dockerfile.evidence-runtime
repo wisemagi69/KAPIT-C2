@@ -1,0 +1,21 @@
+# Runtime-only packaging of independently verified compiled exports; no build stages.
+FROM docker.io/library/python@sha256:9bbb8720ae0a24a6ca8dd678bfdf57818fe70caf54c52a53ec01d8db43405056
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent TMPDIR=/scratch LD_LIBRARY_PATH=/opt/clamav/lib:/opt/closure/lib
+# closure/ is an independently inventoried matching-glibc ELF dependency closure
+# under /opt/closure only. No writes over the pinned base interpreter/loader.
+COPY closure/ /opt/closure/
+COPY clamav/ /opt/clamav/
+COPY wheels/ /opt/wheels/
+RUN --network=none python -I -B -m pip install --no-index --no-deps --only-binary=:all: --require-hashes --no-compile --find-links=/opt/wheels -r /opt/wheels/requirements.txt
+COPY signatures/ /opt/signatures/
+COPY kapit_evidence/ /usr/local/lib/python3.14/site-packages/kapit_evidence/
+COPY runtime.json signature-files.json /opt/evidence/
+# Hash-only packaging check: imports only pure modules, never initializes FFI,
+# Pillow, the kernel helper, stdin, a database, or the native main function.
+RUN --network=none python -I -B -c "from kapit_evidence.evidence_native_worker import load_configuration; load_configuration()"
+WORKDIR /scratch
+USER 65532:65532
+# No VOLUME, HEALTHCHECK, shell command, daemon, updater or external entrypoint.
+# Controller supplies the fixed mode; worker must confine itself before input.
+ENTRYPOINT ["/usr/local/bin/python", "-I", "-B", "-m", "kapit_evidence.evidence_native_worker"]
+CMD []

@@ -1,0 +1,11 @@
+.cache/
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.env
+.env.*
+!.env.example
+web/dist/
+web/test-results/
+web/playwright-report/

@@ -1,0 +1,322 @@
+{
+  "contract_id": "kapit-m4-private-evidence-validation",
+  "version": "1.0.1",
+  "task": "TASK-214",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_SECURITY_REVIEW",
+  "scope": "Local synthetic maintenance/water-supply evidence. Design only until separately scoped implementation, independent review and runtime gates. Never recipient/public media.",
+  "baseline": {
+    "parent_contract": "contracts/m4/evidence.json",
+    "immutable_model": "operations.PrivateEvidence",
+    "immutable_state": "QUARANTINED",
+    "immutable_code": "DECODER_REQUIRED",
+    "preserve": [
+      "operations.0006_private_evidence and all its guards",
+      "source/correction/approval/publication/mobile contracts",
+      "two evidence slots per immutable revision",
+      "current original-source authorization",
+      "text-operation independence",
+      "retain-all category policy"
+    ]
+  },
+  "bounds": {
+    "original_bytes": 5242880,
+    "derivative_bytes": 5242880,
+    "width": 6000,
+    "height": 6000,
+    "pixels": 24000000,
+    "frames": 1,
+    "concurrent_runs": 1,
+    "decoder_wall_seconds": 30,
+    "decoder_cpu_seconds": 20,
+    "decoder_memory_bytes": 1073741824,
+    "scanner_wall_seconds_per_pass": 180,
+    "scanner_engine_milliseconds": 60000,
+    "scanner_cpu_seconds_per_pass": 120,
+    "scanner_memory_bytes": 4294967296,
+    "scanner_expanded_bytes": 33554432,
+    "scanner_max_files": 32,
+    "scanner_recursion": 4,
+    "helper_header_bytes": 4096,
+    "helper_stderr_bytes": 16384,
+    "scanner_output_bytes_per_stream": 65536,
+    "run_scratch_bytes": 67108864,
+    "manifest_bytes": 65536,
+    "signature_check_max_age_seconds": 86400,
+    "daily_signature_max_age_seconds": 259200,
+    "validation_max_age_seconds": 86400,
+    "manifest_max_lifetime_seconds": 604800,
+    "manifest_fence_wait_seconds": 5,
+    "scanner_stdin_spool_bytes": 5242880
+  },
+  "dependencies": {
+    "decoder_candidate": {
+      "distribution": "Pillow",
+      "version": "13.0.0",
+      "source": "https://pillow.readthedocs.io/en/stable/releasenotes/13.0.0.html"
+    },
+    "scanner_candidate": {
+      "distribution": "ClamAV official Windows portable ZIP",
+      "version": "1.4.6",
+      "alternative_requires_new_review": "1.5.4",
+      "source": "https://docs.clamav.net/faq/faq-eol.html"
+    },
+    "pinning": "Candidates researched 2026-10-21; not installed or artifact-verified. Before provisioning recheck official advisories/support, exact platform/Python ABI, archive/wheel SHA-256, available publisher signatures and independent pinned signing-key provenance. A digest fetched alongside an unverified artifact is not publisher authentication. Record missing authentication, bundled codec/DLL versions and license notices; do not claim supply-chain/security certification. No silent version fallback or global install."
+  },
+  "manifest": {
+    "schema_version": 1,
+    "purpose": "private-evidence-validation-v1",
+    "fields": [
+      "schema_version",
+      "purpose",
+      "policy_generation",
+      "created_at",
+      "valid_until",
+      "contract_sha256",
+      "helper_sha256",
+      "python_version",
+      "python_artifact_sha256",
+      "pillow_version",
+      "pillow_wheel_sha256",
+      "decoder_tree_sha256",
+      "codec_versions",
+      "clamav_version",
+      "clamav_archive_sha256",
+      "scanner_tree_sha256",
+      "signature_generation",
+      "signature_files",
+      "daily_signed_at",
+      "last_successful_update_check_at",
+      "signature_verification_receipt_sha256",
+      "isolation_profile_sha256",
+      "limits_sha256"
+    ],
+    "rules": [
+      "Closed UTF-8 JSON; reject duplicate/nonfinite/unknown fields, depth>8/nodes>2048. Schema exact int1, positive generation, no bool. SHA256 lowercase ASCII 64-hex/C semantics; aware UTC. Observed created_at/scan/check/signed timestamps cannot be future-dated; detect clock reversal. valid_until intentionally future: created_at < valid_until <= created_at+604800 seconds. Expiry is not an observed event and cannot refresh a check/build time.",
+      "Canonical SHA-256 of manifest binds every policy/codec/helper/isolation/limits/signature input. Every signature_files member contains fixed allowlisted official basename, SHA-256, signed database version/build time and verification receipt. At most 16 members; no path, URL, signature name or free-form metadata in ORM/client output.",
+      "Actual runnable files, DLLs, interpreter and official signature database set must match verified provenance. Version strings alone are insufficient. Tool/signature generations are exclusively created, canonical, ownership/ACL checked, immutable/read-only to application/helpers; never registry/PATH/default-directory discovery.",
+      "Private trusted current-manifest pointer names exactly one reviewed generation. Activation/revocation and every prepare/commit/download participate in mandatory cross-process manifest fence below BEFORE organization locks. No web activation/automatic upgrade. Missing pointer/receipt, changed provenance/ACL, stale check, unsupported/revoked generation closes access.",
+      "Refresh uses a separate workspace-owned updater allowed only official signature distribution endpoints and no project data. Never clamsubmit/sample upload or scanner network. Stage a fresh generation, verify official signatures and engine compatibility, atomically switch only the trusted pointer. Never overwrite active/open generation files; use checked immutable handles or equivalent TOCTOU protection.",
+      "Successful freshclam no-update checks may refresh a verified update-check receipt without fabricating a new database build time. Timestamp extension requires a real verified check, not file mtime. Validation expires at the earliest policy expiry, scan+24h, successful update-check+24h and signed daily database+72h. Database generation changes require new validation; old records remain immutable."
+    ],
+    "private_receipts": "No receipt contains uploaded bytes, names, EXIF, image/source digests or arbitrary tool output. Executable/package/database artifact hashes are permissible provenance; evidence hashes stay in private encrypted/DB records.",
+    "fence": {
+      "resource": "Workspace-hash-derived fixed Windows Local named mutex with checked owner/DACL for trusted application/operator principals, excluding scanner/decoder capabilities. Equivalent OS cross-process fence requires separate proof; Python threading lock or checked lockfile alone insufficient.",
+      "acquisition": "Wait at most5s. Wrong owner/DACL, abandoned mutex, unknown marker, absent capability or acquire failure => unavailable/quarantine. Never automatically continue after abandonment; trusted operator must quiesce/reverify. Every application/command/updater process participates.",
+      "ordering": "Manifest fence -> organization -> actor -> report -> revision -> evidence -> validation -> audit. Never acquire fence while holding business DB locks. Updater performs network/staging outside fence, takes fence only for verified activation/revocation and never takes business locks.",
+      "lifetime": "Prepare holds fence through authorized snapshot+manifest capture then releases before native work; children use pinned immutable generations. Commit reacquires fence BEFORE DB locks, requires captured generation unchanged, holds through currentness checks/insert/audit and successful COMMIT. Download holds fence through scope/manifest/latest-attempt/integrity checks, audit COMMIT and complete bounded response preparation (delivery linearization); release afterwards. No native work/network under fence.",
+      "race": "Pointer switch before commit/download linearization denies stale-generation insertion/delivery; activation cannot switch within a held critical section. Switch after authorized delivery linearization cannot recall bytes. Unexpected pointer/receipt mutation despite fence is protocol violation and closes access. Artifact handles alone do not synchronize currentness.",
+      "tests": "Two-process tests prove activation waits during commit/download; prior switch rejects old snapshot; abandonment/spoofing/failure closes access; no lock inversion."
+    }
+  },
+  "validation_model": {
+    "name": "PrivateEvidenceValidation",
+    "kind": "New append-only table; never promote/update PrivateEvidence.",
+    "fields": {
+      "id": "UUID primary key",
+      "organization": "PROTECT FK scopes.Organization",
+      "evidence": "PROTECT FK operations.PrivateEvidence",
+      "validated_by": "PROTECT FK accounts.User; current original-access actor who initiated explicit run",
+      "operation_id": "UUID; caller persists exact request identity for retry",
+      "request_hash": "SHA-256 purpose+actor+evidence+original request hash+input digest+manifest hash",
+      "manifest_hash": "SHA-256 of exact canonical reviewed manifest",
+      "signature_generation": "SHA-256 of exact verified official database set",
+      "input_sha256": "Private digest of decrypted original bytes",
+      "state": "QUARANTINED | REJECTED_PRIVATE | VALIDATED_PRIVATE",
+      "code": "Closed state/code pair vocabulary below",
+      "created_at": "Database/application aware UTC commit timestamp",
+      "validated_at": "Nullable UTC completion timestamp; required only VALIDATED_PRIVATE",
+      "expires_at": "Nullable UTC expiry; required only VALIDATED_PRIVATE",
+      "provenance_ciphertext": "Encrypted closed-schema copy of exact manifest, fixed step outcomes and times; bounded plaintext <=64 KiB; no raw tool output",
+      "derivative_ciphertext": "Nullable encrypted typed envelope containing normalized PNG bytes and identity binding; present iff VALIDATED_PRIVATE",
+      "derivative_sha256": "Nullable lowercase SHA-256, present iff VALIDATED_PRIVATE",
+      "derivative_size": "Nullable exact integer 1..5242880, present iff VALIDATED_PRIVATE",
+      "width": "Nullable exact integer 1..6000, present iff VALIDATED_PRIVATE",
+      "height": "Nullable exact integer 1..6000, present iff VALIDATED_PRIVATE",
+      "key_id": "Fixed established local-fernet-v1; no claim of independent key custody/rotation"
+    },
+    "constraints": [
+      "Unique(validated_by,operation_id) across evidence and manifests; never global cross-account digest deduplication.",
+      "All relation organizations agree and evidence/actor exist; use organization INSERT guard. FK targets PROTECT. Live permission remains a service check.",
+      "Before UPDATE or DELETE always reject using append-only guard. No state-transition UPDATE or cascade deletion.",
+      "CHECK explicit non-null validated fields iff VALIDATED_PRIVATE/code VALIDATION_COMPLETE, derivative encrypted bytes nonempty, hashes valid, pixel product <=24000000, validated_at <= created_at < expires_at, expires_at <= validated_at+24h. SQL NULL/UNKNOWN cannot satisfy an incomplete validated branch; explicit IS NOT NULL checks required.",
+      "Nonvalidated rows have all derivative fields and validated_at/expires_at NULL. provenance_ciphertext and input/request/manifest hashes required for every committed attempt; failure before trustworthy manifest/decrypt yields no fabricated record, only fixed unavailable result.",
+      "Index evidence+created_at+id for deterministic latest attempt; index organization+evidence. No uniqueness on evidence+manifest, because unavailable attempts and expired checks can be retried with a new operation UUID."
+    ]
+  },
+  "outcomes": {
+    "VALIDATED_PRIVATE": [
+      "VALIDATION_COMPLETE"
+    ],
+    "REJECTED_PRIVATE": [
+      "INVALID_IMAGE",
+      "TYPE_MISMATCH",
+      "PIXEL_LIMIT",
+      "MULTIFRAME_UNSUPPORTED",
+      "METADATA_INVALID"
+    ],
+    "QUARANTINED": [
+      "DEPENDENCY_UNAVAILABLE",
+      "PROVENANCE_UNAVAILABLE",
+      "ISOLATION_UNAVAILABLE",
+      "SCANNER_UNAVAILABLE",
+      "SIGNATURES_STALE",
+      "SCAN_NOT_CLEAN",
+      "RESOURCE_LIMIT",
+      "DECODE_UNAVAILABLE",
+      "DERIVATIVE_LIMIT",
+      "VALIDATION_STALE",
+      "SCRATCH_CLEANUP_REQUIRED"
+    ],
+    "never_safe": [
+      "scanner exit 0 alone",
+      "header plausibility",
+      "one successful scanner pass",
+      "detector score",
+      "exception or timeout",
+      "skipped/unsupported scan",
+      "unrecognized output/schema/type",
+      "stored VALIDATED_PRIVATE without current manifest/scope/integrity/audit checks"
+    ]
+  },
+  "interfaces": {
+    "prepare_validation": "prepare_validation(user,evidence_id,operation_id,*,manifest) -> ValidationSnapshot. Manifest fence then short org-first transaction; current original authorization and exact authority_snapshot mapping below; decrypt/validate envelope/bytes/hash/size. Same authorized request returns immutable prior attempt; conflict409. Detached bounded bytes contain no key/DB credentials. Release fence/DB locks before native work.",
+    "run_validation": "run_validation(snapshot, *, manifest, isolated_runner) -> ValidationResult. No ORM/network; manifest/isolator checks first, scan original -> bounded decode/normalize -> structurally validate output -> scan derivative. Unknown/exception fixed quarantine result. Every step and manifest must agree; never accept client verdict.",
+    "commit_validation": "commit_validation(user,snapshot,result,*,manifest) -> private status. Reacquire manifest fence BEFORE business locks; require unchanged captured generation; org-first transaction rechecks live source authorization and exact authority_snapshot fields, evidence hash, freshness, result schema and verified scratch cleanup. Encrypt/insert/audit atomically, hold fence through COMMIT. Supported revoke/regrant/context change invalidates old snapshot despite renewed access; new operation required. Failed authorization/audit => no insert/delivery.",
+    "command": "validate_private_evidence --actor <UUID> --evidence <UUID> --operation <UUID> [--prepare|--execute]. --prepare default verifies dependencies/guards without decrypt/decode/scan/write; explicit --execute only checked local synthetic runtime. Single explicit evidence ID and actor; no implicit bulk scan or global object enumeration. Persist operation ID for identical retry; new operation permits revalidation. Output fixed status/codes and aggregate counts only, no object/source digest/name/byte/tool output. No autonomous daemon or HTTP validation trigger in first slice.",
+    "retrieval": "private_evidence_download(user, evidence_id) -> immutable prepared PNG response. Use current original-source authorization, current manifest and latest matching valid attempt selected deterministically; never fall back to an earlier success after a later current-generation failure. Validate/decrypt complete envelope and hash/size/dimensions before required audit in same authorized transaction; then return bounded already-prepared bytes. No scanner/decoder spawned by GET.",
+    "status": "New private validation status API as described in api section; baseline quarantine/upload DTO remains frozen.",
+    "authority_snapshot": {
+      "actual_sources": "scopes.access lock_identity/source_allowed/live_memberships; User.permission_version; accounts.services supported grant/account/password mutations; Unit.scope_epoch. No separate membership_epoch/session_version field exists.",
+      "fields": [
+        "organization id/active",
+        "actor id/organization/role/is_active/permission_version",
+        "report id/organization/unit/author",
+        "revision id/report/organization/submitted_by/revision_no",
+        "origin unit id/organization/active/scope_epoch",
+        "exact active actor+origin-unit+role UnitMembership IDs and organization/user/unit/role/active/valid_until values"
+      ],
+      "rules": "Require live author-submitter/origin-reviewer membership and active unit at prepare+commit. Re-read exact values/IDs under org lock; independently evaluate current expiry and require equality. Supported grant/account/password changes increment permission_version; topology changes increment scope_epoch, preventing supported revoke/regrant reuse. Arbitrary owner SQL that restores identical rows without versions is outside guarantee. Operator command has no browser session; HTTP uses real current Django session auth whose hash includes permission_version. Channel/policy authority never grants original access."
+    }
+  },
+  "isolation": {
+    "mandatory": [
+      "Decoder and scanner run as separate owned children with no inherited DB/key/session/secret/environment credentials, no shell/desktop/Image.show/Ghostscript/delegates, no arbitrary filename argument and only explicit absolute reviewed executable/library paths.",
+      "OS-enforced network denial and filesystem boundary: read-only reviewed runtime/signature generation plus explicit minimal OS loader/DLL/registry-read baseline, and exclusive private per-run scratch as the only writable area. Bind actual allowlist/DACL/token capabilities in isolation_profile_sha256; no general user-profile/workspace/root read access. Windows AppContainer/LPAC or reviewed equivalent needs actual negative probes; job/restricted token alone is not filesystem/network/disk-quota proof. Include every inherently writable sandbox profile/AppData/temp path in the same total64MiB quota and private containment, or deny/redirect it before execution. An unaccounted writable profile area or unsupported confinement => ISOLATION_UNAVAILABLE. Do not create global firewall/service/profile/config changes under this contract.",
+      "Create child suspended/guarded, assign enforcing job/resource sandbox before any input or execution; job kill-on-close and no breakaway/descendants, process count one, memory/CPU/wall limits. CREATE_NO_WINDOW on Windows. Kill only verified owned children on timeout; cap/drain stdout/stderr without deadlock; no unbounded communicate accumulation.",
+      "Exclusive canonical UUID scratch under private workspace root; owner sentinel and restrictive DACL BEFORE any data. Reject reparse/symlink/junction/hardlink/redirected parents/targets or adoption. Enforce64MiB total scratch quota/write budget and private filesystem confinement BEFORE transfer; after-write directory monitors/engine limits alone are not hard quota proof. Missing enforcement => quarantine. Each scanner pass may spool its bounded <=5MiB original OR derivative stdin plaintext plus bounded engine extraction within this scratch; stdin is NOT no-disk. No decoder/application-created original file, shared OS temp, persistent filename or scanner logs. Apply spool_lifecycle below.",
+      "Parent alone holds encryption keys and ORM connections. Do not fork an initialized ORM/key-holding parent into helper; launch fresh interpreter with isolated import path. IPC uses 4-byte length-prefixed closed JSON header <=4096 bytes followed by exact bounded binary bytes, no trailing data. Validate header types/length before allocation, digest/identity on return, process exit, output cap, timeout and EOF."
+    ],
+    "unavailable_is_quarantine": true,
+    "spool_lifecycle": {
+      "upstream": "ClamAV1.4.6 scanstdin creates an engine-TMPDIR file, writes all stdin BEFORE scanning, then attempts unlink. Errors/termination/unlink failure can leave plaintext; upstream cleanup alone insufficient.",
+      "preconditions": "Before decrypt/transfer, verify owner/DACL/quota/filesystem sandbox; route --tempdir and TMP/TEMP to exact exclusive empty per-pass scratch; deny every other writable path. Parent sends exact <=5242880 bytes then EOF. Scanner limits do not bound its pre-scan spool; parent transfer+OS quota do. Current-user/AppContainer identity without proven restrictive DACL insufficient.",
+      "sequence": "Original scan -> verified child exit and scratch cleanup -> decoder/normalizer -> derivative scan in new checked scratch -> verified exit and cleanup -> commit. No decode after failed original scan/cleanup; no validated record until both pass cleanup verifications.",
+      "cleanup": "Only after verified child exit: inspect without following links, recheck owner/DACL/canonical containment and file identity. Allow only exclusively owned regular single-link files within flat per-pass directory and aggregate quota; remove each verified file individually; verify empty and remove only that owned empty directory. No recursive delete/adoption/overwrite. Leftover hierarchy/link/changed identity/ACL/undeletable file/unknown child => SCRATCH_CLEANUP_REQUIRED, preserve confined private artifacts, block all further execution until separately reviewed operator resolution. Intermediate engine directories may normally disappear; any remaining hierarchy is not swept.",
+      "confidentiality": "Explicit transient plaintext original/derivative spool allowance within enforced private sandbox. File removal is not secure erasure or protection from filesystem journals/pagefile/crash dumps/host operator; review host volume/custody before activation. Local synthetic scope only. Persistent encrypted originals/history remain retained.",
+      "tests": "Pinned Windows build: benign original+derivative scans leave empty scratch; stdin/EOF/quota enforced before/during writes; kill-during-spool, write/read/unlink failure, remaining hierarchy, ambient temp fallback, link/owner/DACL change => no validated success/outside write; no raw bytes/path/tool text in reports."
+    }
+  },
+  "decoder": {
+    "input_modes": [
+      "1",
+      "L",
+      "LA",
+      "P",
+      "RGB",
+      "RGBA"
+    ],
+    "metadata_total_bytes": 65536,
+    "mode_rule": "Explicitly tested bounded grayscale/palette expansion to RGB or RGBA only; preserve transparency pixels without preserving palette/metadata chunks. CMYK, LAB, floating/high-bit-depth and unknown modes reject until separately reviewed. Cap total JPEG APP/comment and PNG ancillary metadata before native parsing; malformed metadata rejects.",
+    "format_allowlist": [
+      "JPEG",
+      "PNG"
+    ],
+    "allowed_output_modes": [
+      "RGB",
+      "RGBA"
+    ],
+    "output_media_type": "image/png",
+    "pipeline": [
+      "Independent signature/MIME/preflight and strict full container framing before native decode; reject trailing payload and malformed JPEG marker/PNG chunk framing rather than trusting header-only helper. Check PNG CRC/order and forbid APNG control/data chunks; reject JPEG MPO/multiframe metadata.",
+      "Pillow Image.open(BytesIO, formats=['JPEG','PNG']) only; no third-party plugins. Set Image.MAX_IMAGE_PIXELS=24000000 and treat DecompressionBombWarning as error; check strict dimensions/product and n_frames==1 before load. LOAD_TRUNCATED_IMAGES remains false. Set PNG text decompression totals/chunk caps <=65536 before open; over-limit metadata rejects, never silently enables a bypass.",
+      "Run verify(), close, reopen with same formats, recheck dimensions/frames/type then load() fully. verify() alone does not decode. Warnings/malformed/unsupported metadata or unexpected parser behavior fail closed inside resource sandbox.",
+      "Apply bounded ImageOps.exif_transpose for validated orientation, then create a fresh RGB/RGBA image from pixels; never forward image.info/EXIF/XMP/IPTC/ICC/comments/pnginfo. No resizing, OCR, privacy redaction or sensitive-content claims. Reject unsupported color interpretation rather than guessing; test CMYK conversion explicitly before supporting.",
+      "Encode fresh deterministic PNG with empty metadata into a capped output sink; stop before >5242880 bytes. Parent verifies exact signature, IHDR RGB/RGBA8 noninterlaced dimensions, CRCs, contiguous IDAT and final IEND, allowing only IHDR/IDAT/IEND and no trailing bytes. Native helper fully reloads output inside same sandbox to confirm frame/pixel dimensions. Then independent scanner pass over exact derivative bytes."
+    ],
+    "limitation": "Normalization removes file metadata, not visible sensitive text/coordinates or pixel steganography. Private original-source scope always required. Derivative is explicitly a normalized private copy, not original-byte evidence."
+  },
+  "scanner": {
+    "choice": "One-shot official clamscan on bounded stdin '-' per original/derivative; pinned1.4.6 spools plaintext stdin to confined private scratch. No daemon/service/socket or no-disk claim.",
+    "invocation_rules": [
+      "Absolute owned executable; shell=False; explicit immutable database directory with --database, --official-db-only=yes, --disable-cache, --alert-exceeds-max=yes, --alert-encrypted=yes, --max-filesize=5242880, --max-scansize=33554432, --max-files=32, --max-recursion=4, --max-scantime=60000, --follow-file-symlinks=0, --follow-dir-symlinks=0 and explicit owned --tempdir. Preserve normal engine format scanning; no --remove/--move/--copy/--leave-temps/--gen-json/--log/--debug/--file-list/recursive scanning.",
+      "Exact reviewed version supports every requested flag; unknown/ignored/unsupported options quarantine. Sanitized minimal environment disables proxy/PATH/library overrides and user/global config discovery; no external daemon adoption. --tempdir plus TMP/TEMP name checked per-pass sandbox; no ambient temp fallback. Engine flags never replace OS quota, parent stdin bound or verified cleanup.",
+      "Return code0 plus expected single stdin clean result, valid loaded official signatures, no warning/error/skip/limit markers, bounded well-formed protocol and enforced complete process exit required on BOTH passes. Code1 => SCAN_NOT_CLEAN; code2/nonzero/unknown/malformed/timeout=>SCANNER_UNAVAILABLE or RESOURCE_LIMIT; never parse arbitrary signature labels into logs/client fields.",
+      "Parent captures bounded scanner messages privately in memory only and immediately discards them after mapping to fixed code. Any unknown diagnostic, output truncation, incomplete input transfer or skipped/partial scan quarantines. Integration tests must show engine limit/time-limit outcomes cannot become clean on the pinned build."
+    ],
+    "alternative_protocol": "clamd INSTREAM is deliberately deferred: unauthenticated TCP, external config and generation/ownership races require a separate reviewed owned-service design. If later approved use exact NUL-framed commands, unsigned big-endian chunk lengths <=65536, zero terminator, total bound, StreamMaxLength, timeout, response cap and exactly one complete result; never SCAN path commands/unowned daemon."
+  },
+  "api": {
+    "preserve": [
+      "Existing POST revisions/{revision_id}/evidence/ raw upload and its exact DTO/idempotency/revision quota rules",
+      "Existing GET evidence/{evidence_id}/ exact baseline quarantine DTO",
+      "Every M1/M2/M3 recipient/mobile/integration serializer and evidence absence rules"
+    ],
+    "new_status": {
+      "method": "GET",
+      "path": "evidence/{evidence_id}/validation/",
+      "keys": [
+        "evidence_id",
+        "state",
+        "validation_code",
+        "can_download"
+      ],
+      "rules": "Current original-source actor only; audit required; no records/ids/hash/tool/version/name/size/EXIF/provenance. State reflects effective latest attempt/current readiness; stale success becomes QUARANTINED/VALIDATION_STALE, can_download false. No attempt => QUARANTINED/DECODER_REQUIRED (compatibility status code only). Missing/inaccessible uniform404. No collection/list/count endpoint."
+    },
+    "download": {
+      "method": "GET",
+      "path": "evidence/{evidence_id}/download/",
+      "success": "200 exact normalized PNG bytes, Content-Type:image/png, Content-Disposition:attachment; filename=\"evidence.png\", Cache-Control:no-store, X-Content-Type-Options:nosniff, no ETag/Last-Modified/Range/conditional-cache or content-derived filename. Deny HEAD/OPTIONS alternate download/body bypass through explicit supported methods.",
+      "denial": "Missing, inaccessible, no valid current attempt, revoked scope, stale manifest or failed integrity all fixed404 NOT_FOUND with no existence/state distinction. Audit/storage unavailability fixed503 before bytes; never partial output. All responses no-store.",
+      "linearization": "Current authorization/manifest/latest validation and audit are checked atomically under org-first lock before response body construction. Revocation committed before that point blocks retrieval; bytes already delivered cannot be recalled. No cross-request plaintext cache."
+    },
+    "auth": "Real session authentication and normal CSRF for any later state-changing HTTP API. No bearer recipient integration/mobile evidence endpoints, redirects/public URLs or raw originals."
+  },
+  "ui": {
+    "scope": "Minimal website author/current-origin-reviewer private original view only; new bounded task, no mobile contract change.",
+    "requirements": [
+      "Accept only JPEG/PNG, show 5MiB/two-per-revision limits and normalized-private-copy label; client checks supplemental to server guards.",
+      "Upload operation UUID and exact immutable file/body survive uncertain retry; do not generate new UUID/resubmit on changed source revision. Show text receipt independently from evidence status; clear file buffers/object URLs on completion, source/account/context change and signout.",
+      "Fetch status only for evidence IDs received within currently authorized private source context; no recipient probing/presence indicator/count. Quarantine/failure shows fixed private message, never tool stderr/matched names/EXIF.",
+      "Download only explicit user click when current status permits; authenticated request prepares bounded Blob then fixed filename download; recheck backend denial and clear object URL/Blob after use. No inline image/thumbnail/browser decode, persisted localStorage/IndexedDB/service-worker evidence cache, auto-download or public media link.",
+      "Validation execution initially explicit operator command. UI must say pending/unavailable until completed; no simulated progress or assertion that scanner is installed/clean."
+    ]
+  },
+  "transaction_order": [
+    "Cross-process manifest fence BEFORE organization -> actor -> report -> revision -> evidence -> validation -> audit. Never acquire fence after business locks; updater switches pointer under same fence without DB locks.",
+    "No DB locks held during decoder/scanner/update network or untrusted stream read. prepare releases; commit rechecks. Short retrieval preloads bounded ciphertext/bytes before success audit and response; audit failure aborts."
+  ],
+  "migrations": {
+    "proposal": "One additive operations migration after actual current leaves, name allocated by serialized migration writer. New table/indexes/guards only. Do not edit 0006 or existing immutable evidence rows/functions.",
+    "checks": [
+      "Model state and SQL drift; guards enforce append-only/org/link/state/null/hash/time/size/pixel invariants.",
+      "Real disposable PostgreSQL forward preserves every old table row/hash/constraint; empty reverse/reapply succeeds; first reverse operation refuses populated new table before DROP.",
+      "Review exact new file/hash and plan after current full regression; fresh verified owned backup then separate exact user retained-migration approval. Earlier 0006/audit0002 approvals do not cover it.",
+      "Pending unapproved migration continues to stop retained startup; no fake applied ledger, --fake or bypass. No destructive rollback or purge."
+    ]
+  },
+  "planned_verification": [
+    "Pure policy/IPC/manifest/date/type/path/timeout/resource/command-building tests with hostile and unknown results; scanner is never mocked as runtime acceptance.",
+    "Real maintained decoder valid JPEG/PNG, corrupt/truncated/boundary dimensions/pixel bombs/APNG/MPO/trailing payload/CMYK/EXIF-XMP-ICC-text canaries; normalized output exact allowed chunks and full decode; no metadata/secret/raw logs.",
+    "Real pinned official scanner benign image and harmless official test signature in isolated scratch, stale/missing/tampered database, EICAR/nonclean mapping, every limit/timeout/error/unknown output, original and derivative pass; no real malware/data upload.",
+    "OS negative probes prove no network/DB/key/outside-file access, child kill/no-breakaway, output/memory/CPU/scratch limits and reparse/ownership/TOCTOU rejection. Failure keeps quarantine; generic subprocess timeout alone insufficient.",
+    "Actual PostgreSQL/API real session/CSRF upload->validate->status->download, exact replay/conflict, same-manifest later failure, manifest refresh/revalidation, expired/provenance tamper/decrypt/audit rollback, authority revoke during processing and before download, cross-org/author/reviewer/admin/recipient denials, no evidence counts/search/map/feeds/integration/mobile leaks.",
+    "Current full owned backend + genuine HTTP/browser negative/privacy assertions, UI retry/context reset, migration preservation and separately guarded retained apply. No release/model/clean-machine claim from pure fixtures.",
+    "Actual cross-process manifest activation/revocation races, observed-vs-future-expiry timestamp boundaries, concrete authority_snapshot field mapping and pinned Windows scanner original-spool/kill/quota/unlink cleanup evidence; mocks/engine flags alone insufficient."
+  ],
+  "retention": "No category windows/holds/purge invented. Preserve original quarantine, all validation attempts, encrypted derivatives, audit/provenance and required keys/backups under existing RETAIN_ALL. Scratch compensation covers only exclusive ephemeral validation files; persistent evidence removal needs separately approved category/hold policy.",
+  "human_gates": [
+    "Independent security and QA inspect actual source, tools/provenance, isolation and executed evidence before enabling downloads.",
+    "Explicit exact retained migration approval after green disposable evidence/fresh backup.",
+    "Human operational/privacy/custodian policy and final M2/M3/M4/M5 acceptance remain separate. This contract grants no disclosure authority."
+  ]
+}

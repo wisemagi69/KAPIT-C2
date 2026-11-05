@@ -1,0 +1,510 @@
+package org.kapit.c2.mobile.sync
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.KeyguardManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.SystemClock
+import android.util.AtomicFile
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityWindowInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.security.MessageDigest
+import java.time.Instant
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.kapit.c2.mobile.KapitApplication
+import org.kapit.c2.mobile.MainActivity
+import org.kapit.c2.mobile.data.local.AndroidProtectedRepository
+import org.kapit.c2.mobile.data.local.ProtectedDatabase
+import org.kapit.c2.mobile.domain.*
+import org.kapit.c2.mobile.ui.*
+
+/**
+ * TASK-097 pending fixture: genuine MainActivity/production runtime, Slice A only.
+ * Host owns the isolated service/emulator, real credential input and exact reverse mapping.
+ * Every product mutation uses visible Compose UI; observations never create a runtime or authority.
+ * Activation/build/execution require separate review. No screenshots, hierarchy dumps or raw logs.
+ */
+@RunWith(AndroidJUnit4::class)
+class MobileLiveUiIntegrationTest {
+    @get:Rule val compose = createEmptyComposeRule()
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
+    private val automation get() = instrumentation.uiAutomation
+    private val application get() = context.applicationContext as KapitApplication
+    private val phaseFile get() = File(context.noBackupFilesDir, "m2-ui-native-phase")
+    private val ackFile get() = File(context.noBackupFilesDir, "m2-ui-host-ack")
+    private lateinit var controller: MobileController
+    private lateinit var runId: String
+    private var scenario: ActivityScenario<MainActivity>? = null
+    private var sequence = 0
+    private var deadline = 0L
+    private var stage = "preflight"
+
+    private val steps = listOf(
+        "starting" to "ready",
+        "enrollment_prompt" to "credential_returned",
+        "enrolled" to "offline",
+        "offline_checked" to "offline_verified",
+        "draft_saved" to "draft_checked",
+        "reopen_prompt" to "credential_returned",
+        "draft_reopened" to "draft_checked",
+        "queue_cancelled" to "no_effects",
+        "initial_queued" to "queued_checked",
+        "offline_attempted" to "reconnected",
+        "receipt_observed" to "server_received",
+        "reports_verified" to "server_verified",
+        "completed" to "finished",
+    )
+
+    @Test fun actualUiEnrollmentOfflineQueueAndReceipt() {
+        var originalFlags: Int? = null
+        var failed = false
+        try {
+            requireOwnedFreshRun()
+            deadline = SystemClock.elapsedRealtime() + 360_000
+            originalFlags = automation.serviceInfo.flags
+            automation.serviceInfo = automation.serviceInfo.apply {
+                flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            }
+            checkpoint("starting")
+            scenario = ActivityScenario.launch(MainActivity::class.java)
+            bindExistingController()
+            awaitState { it.access == MobileAccess.SIGNED_OUT && !it.busy }
+            check(!state().showsProtectedContent && !state().capabilities.authenticate)
+            check(readAccess().storeRef == null && !readAccess().ready)
+            compose.onNodeWithText("Username").assertIsNotEnabled()
+            compose.onNodeWithText("Password").assertIsNotEnabled()
+            credential("Verify device unlock", "enrollment_prompt")
+            awaitState { it.access == MobileAccess.SIGNED_OUT && it.capabilities.authenticate && !it.busy }
+            stage = "account_sign_in"
+            fill("Username", "submitter")
+            // Public synthetic seed_demo credential, never a real user's password or a host argument.
+            fill("Password", "DemoMaintenance!2026")
+            click("Continue securely")
+            awaitReady()
+            visible("Keep maintenance moving.")
+            val empty = persisted()
+            check(empty.snapshot.context.role == "submitter")
+            check(empty.snapshot.context.capture.templateVersion == MAINTENANCE_TEMPLATE)
+            check(empty.snapshot.drafts.isEmpty() && empty.snapshot.outbox.isEmpty() && empty.receipt == null)
+            val owner = empty.snapshot.context.capture
+            checkpoint("enrolled") // Host confirms one real enrollment, zero effects, then disconnects only mobile.
+
+            stage = "offline_read"
+            click("Reports", scroll = false)
+            awaitState { it.screen == MobileScreen.REPORTS && !it.busy }
+            click("Refresh report status")
+            awaitState { !it.busy && it.notice == MobileNotice.CONNECTION_UNAVAILABLE && it.connection == ConnectionUi.OFFLINE }
+            check(!state().reports.loaded && state().reports.items.isEmpty())
+            visible("Cannot reach the local service")
+            checkpoint("offline_checked")
+
+            stage = "draft_create"
+            click("Home", scroll = false)
+            awaitState { it.screen == MobileScreen.HOME && !it.busy }
+            click("Create maintenance report")
+            awaitState { it.screen == MobileScreen.EDITOR && it.editor != null && !it.busy }
+            val originalEditor = checkNotNull(state().editor)
+            val observed = originalEditor.form.observedAt
+            check(observed.isNotEmpty() && Instant.parse(observed).toEpochMilli() <= persisted().snapshot.serverNowMillis)
+            check(editable("Observed at (with timezone)") == observed)
+            val firstContent = initialContent(observed)
+            enterForm(firstContent)
+            saveDraft()
+            val first = persisted().snapshot.drafts.single()
+            check(first.id == originalEditor.draftId && first.revision > originalEditor.draftRevision && first.content == firstContent)
+            click("Back to drafts")
+            awaitState { it.screen == MobileScreen.DRAFTS && !it.busy }
+            click("Edit draft")
+            awaitState { it.editor?.draftId == first.id && !it.busy }
+            check(checkNotNull(state().editor).form.toContent() == firstContent)
+            check(editable("Site label") == firstContent.siteLabel)
+            val edited = editedContent(observed)
+            stage = "draft_edit"
+            enterForm(edited)
+            saveDraft()
+            val saved = persisted().snapshot.drafts.single()
+            check(saved.id == first.id && saved.revision > first.revision && saved.content == edited && saved.capture == owner)
+            check(persisted().snapshot.outbox.isEmpty())
+            checkpoint("draft_saved")
+
+            stage = "activity_recreation"
+            checkNotNull(scenario).recreate()
+            bindExistingController()
+            awaitState { !it.busy && it.access in setOf(MobileAccess.LOCKED, MobileAccess.UNLOCK_REQUIRED) && !it.showsProtectedContent }
+            visible("Workspace locked")
+            check(state().drafts.isEmpty() && state().outbox.isEmpty() && state().editor == null)
+            credential("Unlock workspace", "reopen_prompt")
+            awaitReady()
+            val reopened = persisted()
+            check(reopened.snapshot.drafts.single() == saved && reopened.snapshot.outbox.isEmpty() && reopened.snapshot.context.capture == owner)
+            click("Open drafts")
+            awaitState { it.screen == MobileScreen.DRAFTS && !it.busy }
+            click("Edit draft")
+            awaitState { it.editor?.draftId == saved.id && !it.busy }
+            check(checkNotNull(state().editor).form.toContent() == edited)
+            checkEditorText(edited)
+            checkpoint("draft_reopened")
+
+            stage = "queue_cancel"
+            click("Review & queue submission")
+            visible("Queue this fixed submission?", scroll = false)
+            click("Keep editing", scroll = false)
+            compose.waitForIdle()
+            check(state().screen == MobileScreen.EDITOR && !state().busy)
+            val cancelled = persisted()
+            check(cancelled.snapshot.drafts.single() == saved && cancelled.snapshot.outbox.isEmpty() && cancelled.receipt == null)
+            checkpoint("queue_cancelled")
+
+            stage = "queue_commit"
+            click("Review & queue submission")
+            visible("Queue this fixed submission?", scroll = false)
+            click("Confirm & queue", scroll = false)
+            awaitState { it.screen == MobileScreen.OUTBOX && it.outbox.size == 1 && !it.busy }
+            val queued = persisted()
+            val immutable = queued.snapshot.outbox.single()
+            check(queued.snapshot.drafts.isEmpty() && queued.receipt == null)
+            check(immutable.content == edited && immutable.capture == owner && immutable.expectedRevision == 0)
+            check(immutable.delivery in setOf(DeliveryState.QUEUED, DeliveryState.SENDING) && immutable.pause == null)
+            check(immutable.predecessorOperationId == null && queued.submissionHash != null)
+            checkpoint("initial_queued")
+            stage = "offline_sync"
+            click("Sync now")
+            awaitState { !it.busy }
+            val undelivered = persisted()
+            sameSubmission(queued, undelivered)
+            check(undelivered.receipt == null && undelivered.snapshot.outbox.single().delivery in setOf(DeliveryState.QUEUED, DeliveryState.SENDING))
+            check(state().outbox.single().delivery != DeliveryUi.RECEIVED)
+            checkpoint("offline_attempted") // Host independently confirms no effect before restoring exact reverse.
+
+            stage = "online_delivery"
+            deliverThroughUi()
+            val received = persisted()
+            sameSubmission(queued, received)
+            check(received.snapshot.outbox.single().delivery == DeliveryState.RECEIVED && received.receipt != null)
+            visible("Received by server")
+            checkpoint("receipt_observed", 90_000) // Host checks original payload/binding and waits for real processing.
+            stage = "duplicate_sync"
+            click("Sync now")
+            awaitState { !it.busy }
+            val repeated = persisted()
+            sameSubmission(queued, repeated)
+            check(repeated.receipt == received.receipt && repeated.snapshot.drafts.isEmpty())
+
+            stage = "reports_read"
+            click("Reports", scroll = false)
+            awaitState { it.screen == MobileScreen.REPORTS && !it.busy }
+            click("Refresh report status")
+            awaitState { !it.busy && it.reports.loaded }
+            val listed = state().reports
+            check(listed.totalCount == 1 && listed.items.single().id == immutable.reportId && listed.items.single().revision == 1)
+            click("Open report")
+            awaitState { !it.busy && it.screen == MobileScreen.REPORT_DETAIL && it.reportDetail != null }
+            val detail = checkNotNull(state().reportDetail)
+            check(detail.reportId == immutable.reportId && detail.revision == 1 && detail.form.toContent() == edited)
+            check(detail.delivery == DeliveryUi.RECEIVED && detail.processing == ProcessingUi.PREPARED && detail.review == ReviewUi.AWAITING_REVIEW)
+            check(detail.sharing == SharingUi.UNKNOWN && !detail.canCorrect && detail.feedback == null)
+            check(detail.history.size == 1 && detail.history.single().revision == 1)
+            // Each expected value must be visible on the actual original-detail screen, not just in a model.
+            listOf(edited.observedAt, "Water supply", "Routine", edited.areaLabel, edited.siteLabel,
+                edited.reporterLabel, edited.narrative, edited.assistanceRequested).forEach { visible(it) }
+            visible("Received by server"); visible("Prepared"); visible("Awaiting human review")
+            val final = persisted()
+            sameSubmission(queued, final)
+            check(final.receipt == received.receipt && final.snapshot.context.capture == owner)
+            checkActualResponseCache(edited, checkNotNull(final.receipt))
+            checkpoint("reports_verified", 90_000)
+            checkpoint("completed")
+            check(sequence == steps.size)
+        } catch (_: Throwable) {
+            failed = true
+            // Compose errors can include node text. Do not retain messages/causes/assertion values.
+            throw AssertionError("MOBILE_LIVE_UI_FAILED_" + stage)
+        } finally {
+            var cleanupFailed = false
+            try { scenario?.close() } catch (_: Throwable) { cleanupFailed = true }
+            scenario = null
+            try {
+                originalFlags?.let { flags -> automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags } }
+            } catch (_: Throwable) { cleanupFailed = true }
+            if (cleanupFailed && !failed) throw AssertionError("MOBILE_LIVE_UI_CLEANUP_FAILED")
+            // No app-data/key/marker deletion: host retains the owned run's evidence and stops the emulator.
+        }
+    }
+
+    private fun requireOwnedFreshRun() {
+        check(context.packageName == "org.kapit.c2.mobile.spike")
+        check(Build.VERSION.SDK_INT >= 35 && Build.HARDWARE in setOf("ranchu", "goldfish"))
+        check(InstrumentationRegistry.getArguments().getString("ownedEmulator") == "true")
+        runId = checkNotNull(InstrumentationRegistry.getArguments().getString("runId"))
+        check(Regex("[0-9a-f]{32}").matches(runId))
+        check(context.getSystemService(KeyguardManager::class.java).let { it.isDeviceSecure && !it.isDeviceLocked })
+        listOf(phaseFile, ackFile).forEach { file ->
+            check(listOf(file, File(file.path + ".bak"), File(file.path + ".new")).none { it.exists() })
+        }
+    }
+
+    private fun bindExistingController() {
+        checkNotNull(scenario).onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0)
+            controller = ViewModelProvider(activity)[MobileControllerModel::class.java].controller
+        }
+    }
+
+    private fun state() = controller.state.value
+    private fun awaitState(predicate: (MobileUiState) -> Boolean) = await(30_000) { predicate(state()) }
+    private fun awaitReady() = awaitState { it.showsProtectedContent && it.localDataLoaded && !it.busy }
+    private fun await(maximum: Long, predicate: () -> Boolean) {
+        val left = deadline - SystemClock.elapsedRealtime()
+        check(left > 0)
+        compose.waitUntil(timeoutMillis = minOf(maximum, left)) {
+            check(SystemClock.elapsedRealtime() < deadline)
+            predicate()
+        }
+    }
+
+    private fun click(label: String, scroll: Boolean = true) {
+        check(SystemClock.elapsedRealtime() < deadline)
+        val node = compose.onNodeWithText(label)
+        if (scroll) node.performScrollTo()
+        node.assertIsDisplayed().performClick()
+    }
+    private fun visible(value: String, scroll: Boolean = true) {
+        val node = compose.onNodeWithText(value, useUnmergedTree = true)
+        if (scroll) node.performScrollTo()
+        node.assertIsDisplayed()
+    }
+    private fun fill(label: String, value: String) {
+        compose.onNodeWithText(label).performScrollTo().performTextReplacement(value)
+    }
+    private fun editable(label: String): String = compose.onNodeWithText(label).fetchSemanticsNode().config[SemanticsProperties.EditableText].text
+    private fun enterForm(value: MaintenanceContent) {
+        click(if (value.category == "WATER_SUPPLY") "Water supply" else "Infrastructure")
+        click(if (value.urgency == "ROUTINE") "Routine" else "Priority")
+        click(value.areaLabel)
+        fill("Site label", value.siteLabel); fill("Reporter label", value.reporterLabel); fill("Maintenance details", value.narrative)
+        click(value.assistanceRequested)
+        checkEditorText(value)
+    }
+    private fun checkEditorText(value: MaintenanceContent) {
+        check(editable("Observed at (with timezone)") == value.observedAt)
+        check(editable("Site label") == value.siteLabel && editable("Reporter label") == value.reporterLabel)
+        check(editable("Maintenance details") == value.narrative)
+    }
+    private fun saveDraft() {
+        val revision = checkNotNull(state().editor).draftRevision
+        click("Save editable draft")
+        awaitState { !it.busy && it.notice == MobileNotice.DRAFT_SAVED && (it.editor?.draftRevision ?: 0) > revision }
+    }
+
+    // Seven fixed synthetic wire values are independently checked by the host in memory.
+    private fun editedContent(observedAt: String) = MaintenanceContent(
+        observedAt = observedAt, category = "WATER_SUPPLY", urgency = "ROUTINE", areaLabel = "Area A",
+        siteLabel = "Synthetic edited UI water station", reporterLabel = "Synthetic edited UI reporter",
+        narrative = "PRIVATE_M2_UI_EDITED_NARRATIVE: fictional water pump needs repair.", assistanceRequested = "Repair assistance",
+    )
+    private fun initialContent(observedAt: String) = MaintenanceContent(
+        observedAt = observedAt, category = "INFRASTRUCTURE", urgency = "PRIORITY", areaLabel = "Area B",
+        siteLabel = "Synthetic initial UI station", reporterLabel = "Synthetic initial UI reporter",
+        narrative = "PRIVATE_M2_UI_INITIAL_NARRATIVE: fictional inspection draft.", assistanceRequested = "Inspection",
+    )
+
+    private fun credential(label: String, phase: String) {
+        stage = phase
+        click(label)
+        await(30_000) { credentialWindow() }
+        checkpoint(phase)
+        await(30_000) {
+            !credentialWindow() && checkNotNull(scenario).state == Lifecycle.State.RESUMED &&
+                controller.unlockRequest.value == null && !state().busy
+        }
+        check(context.getSystemService(KeyguardManager::class.java).let { it.isDeviceSecure && !it.isDeviceLocked })
+    }
+    @Suppress("DEPRECATION")
+    private fun credentialWindow(): Boolean {
+        val intent = checkNotNull(context.getSystemService(KeyguardManager::class.java)
+            .createConfirmDeviceCredentialIntent("KAPIT test", "Device credential"))
+        val expected = checkNotNull(context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName)
+        check(expected in setOf("com.android.settings", "com.android.systemui"))
+        return automation.windows.any { window ->
+            try {
+                window.type == AccessibilityWindowInfo.TYPE_APPLICATION && (window.isActive || window.isFocused) &&
+                    window.root?.let { node -> try { node.packageName?.toString() == expected } finally { node.recycle() } } == true
+            } finally { window.recycle() }
+        }
+    }
+
+    private fun checkpoint(phase: String, timeout: Long = 60_000) {
+        check(sequence < steps.size && steps[sequence].first == phase)
+        stage = phase
+        sequence++
+        val bytes = CanonicalJson.bytes(buildJsonObject { put("schema", 1); put("run", runId); put("seq", sequence); put("phase", phase) })
+        check(bytes.size <= 256 && bytes.all { it.toInt() in 0..127 })
+        val marker = AtomicFile(phaseFile)
+        val stream = marker.startWrite()
+        try { stream.write(bytes); marker.finishWrite(stream) }
+        catch (failure: Throwable) { marker.failWrite(stream); throw failure }
+        await(timeout) {
+            if (!ackFile.exists()) {
+                check(sequence == 1)
+                false
+            } else {
+                val raw = ackFile.inputStream().use { it.readNBytes(257) }
+                check(raw.isNotEmpty() && raw.size <= 256 && raw.all { it.toInt() in 0..127 })
+                val value = StrictJson.objectFrom(raw, 256)
+                check(value.keys == setOf("schema", "run", "seq", "ack"))
+                fun number(name: String): Int {
+                    val item = value.getValue(name).jsonPrimitive
+                    check(!item.isString)
+                    return checkNotNull(item.intOrNull)
+                }
+                fun text(name: String): String {
+                    val item = value.getValue(name).jsonPrimitive; check(item.isString); return item.content
+                }
+                check(number("schema") == 1 && text("run") == runId)
+                val seen = number("seq")
+                if (seen == sequence) {
+                    check(text("ack") == steps[sequence - 1].second)
+                    true
+                } else {
+                    check(sequence > 1 && seen == sequence - 1 && text("ack") == steps[sequence - 2].second)
+                    false
+                }
+            }
+        }
+    }
+
+    private fun deliverThroughUi() {
+        val deliveryDeadline = minOf(deadline, SystemClock.elapsedRealtime() + 90_000)
+        while (true) {
+            check(SystemClock.elapsedRealtime() < deliveryDeadline)
+            val observed = persisted()
+            val row = observed.snapshot.outbox.single()
+            if (row.delivery == DeliveryState.RECEIVED) {
+                // Refresh presentation through a real action if a production worker completed first.
+                click("Sync now"); awaitState { !it.busy && it.outbox.singleOrNull()?.delivery == DeliveryUi.RECEIVED }
+                return
+            }
+            check(row.delivery in setOf(DeliveryState.QUEUED, DeliveryState.SENDING) && row.pause == null)
+            click("Sync now")
+            awaitState { !it.busy }
+            if (state().outbox.single().delivery == DeliveryUi.RECEIVED) return
+            val eligibleAt = persisted().snapshot.outbox.single().nextAttemptElapsed ?: SystemClock.elapsedRealtime()
+            val next = minOf(deliveryDeadline, maxOf(SystemClock.elapsedRealtime() + 250, eligibleAt))
+            await((deliveryDeadline - SystemClock.elapsedRealtime()).coerceAtLeast(1)) {
+                state().outbox.singleOrNull()?.delivery == DeliveryUi.RECEIVED || SystemClock.elapsedRealtime() >= next
+            }
+        }
+    }
+
+    private fun readAccess(): StoreAccess = runBlocking(Dispatchers.IO) {
+        application.container.storageForIntegration().repository.access.value
+    }
+
+    private data class Receipt(val operation: String, val report: String, val revision: String, val number: Int) {
+        override fun toString() = "Receipt(redacted)"
+    }
+    private class Persisted(val snapshot: LocalSnapshot, val submissionHash: String?, val receipt: Receipt?) {
+        override fun toString() = "Persisted(redacted)"
+    }
+    private fun sameSubmission(before: Persisted, after: Persisted) {
+        check(before.submissionHash != null && before.submissionHash == after.submissionHash)
+        val first = before.snapshot.outbox.single(); val second = after.snapshot.outbox.single()
+        check(first.operationId == second.operationId && first.reportId == second.reportId && first.expectedRevision == second.expectedRevision)
+        check(first.content == second.content && first.capture == second.capture && first.requestHash == second.requestHash)
+        check(first.queuedAtServerMillis == second.queuedAtServerMillis && first.predecessorOperationId == second.predecessorOperationId)
+    }
+
+    /** Inspect only the already authorized production handle; never unwrap/open/mutate a database. */
+    private fun persisted(): Persisted = runBlocking(Dispatchers.IO) {
+        val repository = application.container.storageForIntegration().repository
+        check(repository is AndroidProtectedRepository)
+        val type = AndroidProtectedRepository::class.java
+        fun field(name: String): Any = checkNotNull(type.getDeclaredField(name).apply { isAccessible = true }.get(repository))
+        synchronized(field("ioLock")) {
+            synchronized(field("commitFence")) {
+                val generation = repository.access.value.generation
+                val snapshot = repository.snapshot(generation)
+                check(snapshot.drafts.size in 0..1 && snapshot.outbox.size in 0..1)
+                check(repository.access.value.let { it.ready && it.generation == generation && it.storeRef == snapshot.context.capture.account.storeRef })
+                val active = field("active")
+                val database = active.javaClass.getDeclaredField("database").apply { isAccessible = true }.get(active) as ProtectedDatabase
+                check(database.isOpen)
+                val dao = database.dao()
+                var immutableHash: String? = null
+                var localReceipt: Receipt? = null
+                snapshot.outbox.singleOrNull()?.let { row ->
+                    val stored = checkNotNull(dao.submitted(row.operationId))
+                    val request = RequestPolicy.request(row.operationId, row.reportId, row.expectedRevision, row.content, snapshot.serverNowMillis)
+                    val canonical = CanonicalJson.bytes(request)
+                    try {
+                        check(stored.operationId == row.operationId && stored.reportId == row.reportId && stored.expectedRevision == row.expectedRevision)
+                        check(stored.requestHash == row.requestHash && RequestPolicy.requestHash(request) == stored.requestHash)
+                        check(stored.requestBytes.contentEquals(canonical))
+                        check(stored.queuedAtServerMillis == row.queuedAtServerMillis && stored.predecessorOperation == row.predecessorOperationId)
+                        immutableHash = CanonicalJson.sha256(buildJsonObject {
+                            put("operation", stored.operationId); put("report", stored.reportId); put("expected_revision", stored.expectedRevision)
+                            put("request_hash", stored.requestHash); put("request_bytes", hash(stored.requestBytes))
+                            put("content_json", stored.contentJson); put("capture_json", stored.captureJson)
+                            put("queued_at", stored.queuedAtServerMillis); put("predecessor", stored.predecessorOperation)
+                        })
+                    } finally { canonical.fill(0); stored.requestBytes.fill(0) }
+                    val receipt = dao.receipt(row.operationId)
+                    if (row.delivery == DeliveryState.RECEIVED) {
+                        checkNotNull(receipt)
+                        check(receipt.operationId == row.operationId && receipt.reportId == row.reportId && receipt.revisionNo == row.expectedRevision + 1)
+                        check(UUID.fromString(receipt.revisionId).toString() == receipt.revisionId)
+                        localReceipt = Receipt(receipt.operationId, receipt.reportId, receipt.revisionId, receipt.revisionNo)
+                    } else check(receipt == null)
+                }
+                database.query("SELECT COUNT(*) FROM receipts", emptyArray()).use { cursor ->
+                    check(cursor.moveToFirst() && cursor.getLong(0) == if (localReceipt == null) 0L else 1L)
+                }
+                val after = repository.snapshot(generation)
+                check(after.context == snapshot.context && after.drafts == snapshot.drafts && after.outbox == snapshot.outbox)
+                Persisted(snapshot, immutableHash, localReceipt)
+            }
+        }
+    }
+
+    private fun checkActualResponseCache(expected: MaintenanceContent, receipt: Receipt) = runBlocking(Dispatchers.IO) {
+        val repository = application.container.storageForIntegration().repository
+        val generation = repository.access.value.generation
+        val snapshot = repository.snapshot(generation)
+        val cache = checkNotNull(repository.cachedOpenedRevision(generation, receipt.report, receipt.number))
+        check(cache.reportId == receipt.report && cache.revision == 1)
+        val value = StrictJson.objectFrom(cache.validatedJson.toByteArray(Charsets.UTF_8))
+        check(RequestPolicy.content(value.getValue("payload").jsonObject) == expected)
+        val response = value.getValue("receipt").jsonObject
+        check(response.getValue("operation_id").jsonPrimitive.content == receipt.operation)
+        check(response.getValue("report_id").jsonPrimitive.content == receipt.report)
+        check(response.getValue("revision_id").jsonPrimitive.content == receipt.revision)
+        check(response.getValue("revision_no").jsonPrimitive.int == receipt.number)
+        check(response.getValue("shared").jsonPrimitive.boolean == false)
+        check(repository.snapshot(generation).context.capture == snapshot.context.capture)
+    }
+    private fun hash(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 255) }
+}

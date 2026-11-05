@@ -1,0 +1,79 @@
+{
+  "status": "TASK-073 contract expectations; not Android lifecycle evidence",
+  "cases": [
+    {
+      "id": "normal",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 3000,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792296000,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": 86400,
+      "expected_deadline_elapsed_ms": 86401000,
+      "expected_unlock": true
+    },
+    {
+      "id": "response_delayed_past_lease",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 121001,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209720,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": 120,
+      "expected_deadline_elapsed_ms": 121000,
+      "expected_unlock": false
+    },
+    {
+      "id": "zero_remaining",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 1001,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209600,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": 0,
+      "expected_unlock": false
+    },
+    {
+      "id": "negative_remaining",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 1001,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209599,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": -1,
+      "expected_unlock": false
+    },
+    {
+      "id": "inconsistent_duration",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 2000,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209720,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": 86400,
+      "expected_unlock": false
+    },
+    {
+      "id": "family_caps_lease",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 2000,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209720,
+      "family_expires_unix": 1792209720,
+      "lease_seconds": 120,
+      "expected_deadline_elapsed_ms": 121000,
+      "expected_unlock": true
+    },
+    {
+      "id": "exact_deadline",
+      "request_start_elapsed_ms": 1000,
+      "response_elapsed_ms": 121000,
+      "server_time_unix": 1792209600,
+      "lease_expires_unix": 1792209720,
+      "family_expires_unix": 1792814400,
+      "lease_seconds": 120,
+      "expected_deadline_elapsed_ms": 121000,
+      "expected_unlock": false
+    }
+  ]
+}

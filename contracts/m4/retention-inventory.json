@@ -1,0 +1,40 @@
+{
+  "contract_id": "kapit-m4-retention-inventory",
+  "version": "1.0.0",
+  "task": "TASK-149",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "scope": "Pure local synthetic dry-run category classification, not a live collector or activated retention policy.",
+  "helper": {
+    "path": "backend/apps/operations/retention.py",
+    "entrypoint": "inventory(items, now=aware_datetime, proposed_windows=category_to_positive_timedelta)",
+    "item_python_type": "InventoryItem",
+    "item_fields": ["category", "state", "created_at", "confirmed", "recovery_complete", "holds"],
+    "categories": ["MOBILE_OUTBOX", "ACKNOWLEDGED_LOCAL_ORIGINAL", "SOURCE", "CANDIDATE", "FINDING", "EVIDENCE", "PUBLICATION", "DELIVERY", "TOMBSTONE", "RESPONSE_BODY", "OPERATION_IDENTITY", "AUDIT", "SESSION", "BACKUP", "ENCRYPTION_KEY"],
+    "states": ["PENDING", "UNCONFIRMED", "CONFIRMED", "FAILED", "REVOKED", "EXPIRED", "ACTIVE", "COMPLETE"],
+    "holds": ["LEGAL", "EVALUATION", "CORRECTION", "RECOVERY", "DEPENDENCY"],
+    "clock": "Explicit aware datetime required. Created time must be aware and not in the future; fake-clock tests are separate from runtime time evidence.",
+    "proposed_windows": "Dictionary of known category to positive datetime.timedelta; empty dictionary allowed. No period is built in or activated.",
+    "always_protected_categories": ["MOBILE_OUTBOX", "OPERATION_IDENTITY", "AUDIT", "SOURCE", "PUBLICATION", "DELIVERY", "TOMBSTONE", "ENCRYPTION_KEY"],
+    "ordered_retain_checks": ["UNKNOWN_RECORD", "UNKNOWN_CATEGORY", "UNKNOWN_STATE", "UNKNOWN_HOLD", "EXPLICIT_HOLD", "PROTECTED_CATEGORY", "STATE_HOLD", "UNCONFIRMED", "RECOVERY_INCOMPLETE", "INVALID_CLOCK", "NO_PROPOSED_WINDOW", "WITHIN_WINDOW"],
+    "state_hold": ["PENDING", "UNCONFIRMED", "FAILED", "REVOKED", "ACTIVE"],
+    "review_candidate_requires": "Known non-protected category, known state outside state_hold, no holds, exact true boolean confirmed/recovery_complete, valid clock and elapsed explicit proposed window including equality.",
+    "candidate_result": {"disposition": "REVIEW_CANDIDATE", "code": "WINDOW_ELAPSED"},
+    "result_exact_keys": ["mode", "total", "counts"],
+    "mode": "DRY_RUN",
+    "count_exact_keys": ["category", "disposition", "code", "count"],
+    "result_categories": "Known categories or fixed UNKNOWN; never echo hostile supplied category/state/hold text.",
+    "result_order": "Deterministically sorted category/disposition/code counts.",
+    "configuration_errors": ["INVALID_CLOCK", "INVALID_WINDOWS"],
+    "dispositions": ["RETAIN", "REVIEW_CANDIDATE"],
+    "not_implemented": ["database_collection", "authorization", "stream_input_limits", "mutation", "delete", "apply", "purge", "cleanup", "key_expiry"]
+  },
+  "privacy": "Aggregate fixed codes/counts only; no source IDs, digests, content, free text, keys or per-record existence clues. A later collector must apply current permission/scope to inputs and output counts.",
+  "policy_requirements_before_any_disposition": [
+    "Separate custodian-approved category policy specifying duration, clock, holds, backup/key expiry, review and disposition; blueprint examples are unapproved proposals.",
+    "Preserve pending/unconfirmed Android operations, immutable revisions/correction reasons, failed recovery and legal/evaluation holds even after logout, revocation or expiry.",
+    "Never delete durable operation identity to allow duplicate acceptance, replay purged originals, or weaken immutable triggers/PROTECT to enable deletion.",
+    "Any future receipt/body/tombstone skeleton or digest minimization requires independent privacy/migration/replay review and separate approval.",
+    "REVIEW_CANDIDATE is classification only and cannot authorize deleting any row, blob, archive or key. Ledger growth remains a documented limitation."
+  ],
+  "purge_authorized": false
+}

@@ -1,0 +1,63 @@
+{
+  "contract_id": "kapit-m4-private-evidence",
+  "version": "1.0.0",
+  "task": "TASK-149",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "scope": "Local synthetic maintenance and water-supply evidence only; no operational policy or public image release.",
+  "helper": {
+    "path": "backend/apps/operations/evidence_validation.py",
+    "entrypoint": "preflight(data, media_type, filename, limits, decoder=None, expected_digest=None)",
+    "input": {
+      "data": "Nonempty immutable Python bytes; caller bounds the stream before materialization.",
+      "media_type": ["image/jpeg", "image/png"],
+      "filename": "ASCII alphanumeric first character, then alphanumeric/underscore/hyphen basename; .png/.jpg/.jpeg extension, case insensitive; total length <=100; reject Windows reserved device basenames. Never a storage key.",
+      "limits": {
+        "python_type": "EvidenceLimits",
+        "required_positive_integer_fields": ["max_bytes", "max_width", "max_height", "max_pixels"],
+        "boolean_is_integer": false,
+        "note": "Helper accepts explicit validated caller limits; it does not load or activate this candidate runtime policy."
+      },
+      "expected_digest": "Optional lowercase 64-hex SHA-256 for equality against supplied bytes only; not a malware verdict or persisted deduplication lookup.",
+      "decoder": "Optional trusted synchronous local decoder returning exactly DecodedImage(media_type,width,height,frames). No decoder is installed or proven by this contract."
+    },
+    "result_fields": ["state", "code"],
+    "result_pairs": {
+      "REJECTED_PRIVATE": ["INVALID_BYTES", "BYTE_LIMIT", "INVALID_FILENAME", "UNSUPPORTED_TYPE", "TYPE_MISMATCH", "INVALID_DIGEST", "DIGEST_CONFLICT", "MALFORMED_HEADER", "PIXEL_LIMIT", "INVALID_DECODE_RESULT", "MULTIFRAME_UNSUPPORTED", "DECODE_MISMATCH"],
+      "QUARANTINED": ["DECODER_REQUIRED", "DECODE_UNAVAILABLE", "SCANNER_POLICY_REQUIRED"]
+    },
+    "configuration_error": "INVALID_LIMITS",
+    "never_returns": ["VALIDATED_PRIVATE", "APPROVED", "PUBLISHED"],
+    "limitations": [
+      "PNG signature/IHDR/CRC checks and minimal JPEG boundaries are preflight, not full decode or malware validation.",
+      "The injected decoder must enforce allocation and execution bounds during parsing; post-decode dimensions alone cannot establish those bounds.",
+      "Missing decoder, decoder exception or absent scanner policy leaves plausible input quarantined. No quarantined object is downloadable.",
+      "No database, route, persistence, encryption, file storage, revision cardinality or access-control enforcement is implemented by this helper."
+    ]
+  },
+  "candidate_local_runtime_limits": {
+    "authority": "Frozen candidate integration limits for independent security review; not operational policy and not an activated upload service.",
+    "allowed_media_types": ["image/jpeg", "image/png"],
+    "max_bytes_per_object": 5242880,
+    "max_objects_per_immutable_revision": 2,
+    "max_width": 6000,
+    "max_height": 6000,
+    "max_decoded_pixels": 24000000,
+    "required_frames": 1,
+    "animation_or_multiframe": "REJECTED_PRIVATE",
+    "enforcement": "A separately reviewed runtime must enforce streaming size, concurrent revision count, dimensions/pixels, maintained bounded decoding and scanner policy. Numeric caps here are not evidence those services exist."
+  },
+  "runtime_requirements": {
+    "states": ["QUARANTINED", "VALIDATED_PRIVATE", "REJECTED_PRIVATE"],
+    "validated_private_requires": ["SIGNATURE_MIME_AGREEMENT", "BOUNDED_MAINTAINED_DECODE", "DIMENSIONS_PIXELS_SINGLE_FRAME", "APPROVED_SCANNER_POLICY_SUCCESS", "COMPUTED_INTEGRITY_DIGEST", "ENCRYPTED_PRIVATE_STORAGE"],
+    "default_on_unavailable_validation": "QUARANTINED_NO_DOWNLOAD",
+    "text_acceptance": "Independent; evidence failure must not silently discard an accepted text operation.",
+    "identity": "One immutable revision and organization. Retry binds current actor, revision, operation UUID and immutable byte hash; same identity/bytes returns same private result; conflict fails without cross-account digest existence oracle.",
+    "authorization": "Current authenticated actor action permission plus originating-unit/revision/organization access on upload/status/download. Administrator label, channel grant and UUID knowledge do not confer original access.",
+    "storage": "Encrypted private storage outside web static/dist/media roots; server-generated opaque keys; original metadata remains private. Never trust client filename, MIME or digest as authority.",
+    "retrieval": "Only validated private objects under current scope; audit success required; no-store; attachment disposition with fixed safe filename; uniform missing/inaccessible denial. No public URL, thumbnail or quarantine download.",
+    "locking_and_failure": "Review lock ordering before integration; no opposing evidence/approval locks. Transaction/file compensation preserves recoverable private quarantine, never public orphaned blobs.",
+    "recipient_forbidden": ["object_bytes", "public_blob_url", "thumbnail", "original_filename", "EXIF", "evidence_presence", "evidence_count", "private_digest", "storage_key"],
+    "surfaces": ["list", "detail", "map", "search", "counts", "feed", "cache", "errors"],
+    "purge": "No cleanup or retention deletion authorized by this contract."
+  }
+}

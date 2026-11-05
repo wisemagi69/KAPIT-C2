@@ -1,0 +1,12 @@
+.gradle/
+.gradle-user-home/
+.android-user-home/
+.tooling/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+__pycache__/
+*.pyc
+

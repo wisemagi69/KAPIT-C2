@@ -1,0 +1,630 @@
+{
+  "contract_id": "kapit-m4-retention-policy-draft",
+  "version": "1.0.0",
+  "task": "TASK-186",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "scope": "Unapproved declaration validation and fixed-code gap review only; no activation, item eligibility, expiry or disposition authority.",
+  "document_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "status",
+      "categories"
+    ],
+    "properties": {
+      "schema_version": {
+        "type": "integer",
+        "const": 1
+      },
+      "status": {
+        "type": "string",
+        "const": "PROPOSED"
+      },
+      "categories": {
+        "type": "array",
+        "minItems": 15,
+        "maxItems": 15,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "status",
+            "custodian_ref",
+            "duration_seconds",
+            "clock",
+            "hold_sources",
+            "backup_expiry_seconds",
+            "key_expiry_seconds",
+            "disposition",
+            "reviewer_ref",
+            "review_interval_seconds"
+          ],
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "MOBILE_OUTBOX",
+                "ACKNOWLEDGED_LOCAL_ORIGINAL",
+                "SOURCE",
+                "CANDIDATE",
+                "FINDING",
+                "EVIDENCE",
+                "PUBLICATION",
+                "DELIVERY",
+                "TOMBSTONE",
+                "RESPONSE_BODY",
+                "OPERATION_IDENTITY",
+                "AUDIT",
+                "SESSION",
+                "BACKUP",
+                "ENCRYPTION_KEY"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "UNSET",
+                "PROPOSED"
+              ]
+            },
+            "custodian_ref": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            "duration_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "clock": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                null,
+                "CREATED_AT_UTC",
+                "RECEIVED_AT_UTC",
+                "ACKNOWLEDGED_AT_UTC",
+                "COMPLETED_AT_UTC",
+                "RECORDED_AT_UTC",
+                "PUBLISHED_AT_UTC",
+                "FIRST_DELIVERED_AT_UTC",
+                "REMOVED_AT_UTC",
+                "EXPIRES_AT_UTC"
+              ]
+            },
+            "hold_sources": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "LEGAL",
+                "EVALUATION",
+                "CORRECTION",
+                "RECOVERY",
+                "DEPENDENCY"
+              ],
+              "properties": {
+                "LEGAL": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                },
+                "EVALUATION": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                },
+                "CORRECTION": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                },
+                "RECOVERY": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                },
+                "DEPENDENCY": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                }
+              }
+            },
+            "backup_expiry_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "key_expiry_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "disposition": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                null,
+                "RETAIN",
+                "REVIEW_ONLY"
+              ]
+            },
+            "reviewer_ref": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            "review_interval_seconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          }
+        }
+      }
+    }
+  },
+  "semantic_constraints": [
+    "Require exactly one row for every category; reject duplicates/missing categories.",
+    "Exact Python types: schema_version and seconds use type(value) is int, never bool; all lists/objects/strings are exact builtins.",
+    "UNSET row requires every nullable declaration to be null, including every hold source. PROPOSED requires at least one non-null declaration; partial proposals remain missing decisions.",
+    "All string validation uses ASCII fullmatch; do not rely on JSON Schema pattern anchors alone. Custodian/reviewer/hold-source references are untrusted proposal labels, never identities, permissions or proof.",
+    "Integer upper bound is a parser/implementation bound, not a recommended retention period. No default duration or custodian is supplied.",
+    "Even complete proposals remain unapproved; no approved/active status, approval token, purge/delete/apply switch or free-form note is accepted."
+  ],
+  "limits": {
+    "max_utf8_bytes": 65536,
+    "max_json_depth": 8,
+    "max_json_nodes": 2048,
+    "max_categories": 15,
+    "max_reference_chars": 64,
+    "max_duration_seconds": 2147483647,
+    "reject_duplicate_json_keys": true,
+    "reject_nonfinite_json_numbers": true,
+    "reject_unknown_fields": true,
+    "errors": [
+      "INVALID_POLICY_DRAFT",
+      "INVALID_POLICY_OBSERVATION",
+      "POLICY_DRAFT_UNAVAILABLE"
+    ]
+  },
+  "api": {
+    "module": "backend/apps/operations/retention_policy.py",
+    "parse_policy_draft": "parse_policy_draft(raw: bytes) -> immutable PolicyDraft; no filesystem/ORM access",
+    "validate_policy_draft": "validate_policy_draft(document: dict) -> immutable PolicyDraft; validate full schema/semantic constraints, copy/freeze input",
+    "summarize_policy_gaps": "summarize_policy_gaps(proposal: PolicyDraft, *, observed_categories: frozenset[str]) -> fixed aggregate dictionary; observation is validated known categories only, never grants hold/recovery knowledge",
+    "result_exact_keys": [
+      "schema_version",
+      "mode",
+      "policy_status",
+      "disposition",
+      "category_count",
+      "counts"
+    ],
+    "result_constants": {
+      "schema_version": 1,
+      "mode": "DRY_RUN",
+      "policy_status": "PROPOSED_ONLY",
+      "disposition": "RETAIN_ALL",
+      "category_count": 15
+    },
+    "count_exact_keys": [
+      "category",
+      "code",
+      "count"
+    ],
+    "ordering": "Sort by category then code; omit zero counts; positive exact integer counts only.",
+    "gap_codes": [
+      "CATEGORY_UNSET",
+      "CUSTODIAN_UNSET",
+      "DURATION_UNSET",
+      "CLOCK_UNSET",
+      "HOLD_SOURCE_UNSET",
+      "BACKUP_EXPIRY_UNSET",
+      "KEY_EXPIRY_UNSET",
+      "DISPOSITION_UNSET",
+      "REVIEWER_UNSET",
+      "REVIEW_INTERVAL_UNSET",
+      "APPROVAL_REQUIRED",
+      "HOLD_KNOWLEDGE_UNCONFIRMED",
+      "RECOVERY_UNCONFIRMED",
+      "NATIVE_COVERAGE_UNAVAILABLE",
+      "PROTECTED_CATEGORY"
+    ],
+    "counting": "Missing scalar declaration adds one category/code count. HOLD_SOURCE_UNSET counts null hold-source entries (0..5). CATEGORY_UNSET counts an UNSET row. NATIVE_COVERAGE_UNAVAILABLE counts a category absent from observations. APPROVAL_REQUIRED, HOLD_KNOWLEDGE_UNCONFIRMED and RECOVERY_UNCONFIRMED always count one per category. PROTECTED_CATEGORY counts one for each protected category. No READY/eligible result exists.",
+    "observation_limits": "type is frozenset, at most 15 exact known category strings. Empty allowed; unknown/malformed observation raises fixed INVALID_POLICY_OBSERVATION."
+  },
+  "protected_categories": [
+    "MOBILE_OUTBOX",
+    "OPERATION_IDENTITY",
+    "AUDIT",
+    "SOURCE",
+    "PUBLICATION",
+    "DELIVERY",
+    "TOMBSTONE",
+    "ENCRYPTION_KEY"
+  ],
+  "hold_rules": [
+    "Proposed source references do not resolve or prove live holds.",
+    "Conservative category holds may only add retention; no proposal can clear collector UNKNOWN or assert no holds.",
+    "No live confirmation/recovery proof is introduced; pending, unconfirmed, failed recovery and existing protected history remain retained.",
+    "Never convert draft duration into active proposed_windows for native item classification in this slice."
+  ],
+  "native_command": {
+    "path": "backend/apps/operations/management/commands/retention_review.py",
+    "arguments": [
+      "--proposal-file optional JSON draft path"
+    ],
+    "default": "Use this contract default_draft; no duration/custodian fallback.",
+    "input_boundary": "Read regular .json file beneath resolved project root only; reject symlink/junction/reparse components, escape, nonregular/oversized files and parse failures with fixed errors; read bounded bytes. No network/env credential source.",
+    "execution_order": [
+      "Bounded proposal read/validation without ORM.",
+      "Existing retention_inventory.collect_inventory() performs require_native ownership/settings/libpq checks before any ORM/introspection. Do not bypass or weaken it.",
+      "Derive observed_categories only from COUNTED_METADATA source categories in collector result. Missing/unavailable categories remain unavailable; reject malformed observations rather than echo them.",
+      "Return only summarize_policy_gaps output; do not print source counts, input labels, references, file paths, draft contents, IDs, digests or exceptions."
+    ],
+    "not_implemented": [
+      "database/file mutation",
+      "hold registry persistence/release",
+      "approval/activation",
+      "purge/delete/apply",
+      "key expiry",
+      "new remote or application API",
+      "migration",
+      "final retention acceptance"
+    ],
+    "pre_guard_checks": "Set requires_system_checks=[] and requires_migrations_checks=False; lazy-import collector/runtime capabilities. No ORM, introspection, native process proof or database system check precedes explicit native guard.",
+    "fixed_runtime_errors": [
+      "NATIVE_ONLY",
+      "INVENTORY_UNAVAILABLE"
+    ]
+  },
+  "required_tests": [
+    "All 15 null rows yield only missing/unconfirmed/protected/coverage codes and RETAIN_ALL.",
+    "Every scalar boundary, all hold-source null counts and partially/fully populated unapproved proposals.",
+    "Duplicate/missing/unknown categories, unknown keys/status/clocks/disposition, Unicode/newline references, wrong builtin types including bool durations, zero/negative/overflow seconds.",
+    "Duplicate JSON keys, nonfinite values, oversized/deep/node-heavy input; fixed errors without canary echo.",
+    "Returned proposal unaffected by input mutation; sorted deterministic counts.",
+    "Complete proposals cannot remove APPROVAL_REQUIRED/HOLD_KNOWLEDGE_UNCONFIRMED/RECOVERY_UNCONFIRMED or protected retention.",
+    "Command stubs prove native guard precedes ORM, no mutation option, bounded file path refusal, no labels/paths/canaries in outputs. Actual native execution remains parent-reserved."
+  ],
+  "default_draft": {
+    "schema_version": 1,
+    "status": "PROPOSED",
+    "categories": [
+      {
+        "category": "MOBILE_OUTBOX",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "ACKNOWLEDGED_LOCAL_ORIGINAL",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "SOURCE",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "CANDIDATE",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "FINDING",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "EVIDENCE",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "PUBLICATION",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "DELIVERY",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "TOMBSTONE",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "RESPONSE_BODY",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "OPERATION_IDENTITY",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "AUDIT",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "SESSION",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "BACKUP",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      },
+      {
+        "category": "ENCRYPTION_KEY",
+        "status": "UNSET",
+        "custodian_ref": null,
+        "duration_seconds": null,
+        "clock": null,
+        "hold_sources": {
+          "LEGAL": null,
+          "EVALUATION": null,
+          "CORRECTION": null,
+          "RECOVERY": null,
+          "DEPENDENCY": null
+        },
+        "backup_expiry_seconds": null,
+        "key_expiry_seconds": null,
+        "disposition": null,
+        "reviewer_ref": null,
+        "review_interval_seconds": null
+      }
+    ]
+  }
+}

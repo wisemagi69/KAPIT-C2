@@ -1,0 +1,70 @@
+{
+  "contract_id": "kapit-m4-optional-detector",
+  "version": "1.0.0",
+  "task": "TASK-149",
+  "status": "FROZEN_CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "scope": "Private local synthetic assistance and evaluation; no autonomous approval or publication.",
+  "helper": {
+    "path": "backend/apps/sanitization/detector.py",
+    "entrypoint": "detect(text, language='en', adapter=None, manifest=None)",
+    "input": {
+      "text": {"python_type": "str", "nonempty": true, "max_utf8_bytes": 20480},
+      "completed_detection_language": "en",
+      "other_language_outcome": "MANUAL_REQUIRED/UNSUPPORTED_LANGUAGE",
+      "adapter": "Optional trusted synchronous local callable(text,language). No import/install/network/model discovery or runtime timeout enforcement occurs in this helper.",
+      "manifest": {
+        "exact_keys": ["engine", "recognizer_version", "model_version"],
+        "value_pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,79}$",
+        "case_insensitive_forbidden_values": ["unknown", "latest", "none", "unversioned"],
+        "provenance": "Trusted configuration declaration only; syntax validation does not verify installed artifact identity."
+      }
+    },
+    "finding": {
+      "exact_keys": ["entity", "start", "end", "score"],
+      "entity": ["PERSON", "LOCATION", "IDENTIFIER"],
+      "offset_unit": "Python Unicode code points; start inclusive/end exclusive, not UTF-8 bytes.",
+      "bounds": "Strict integers excluding booleans; 0 <= start < end <= len(text).",
+      "score": "NULL or finite numeric [0,1], excluding booleans; reviewed recognizer-specific semantics. NULL when no meaningful score exists. Never disclosure safety probability.",
+      "max_findings": 256,
+      "duplicates": "Reject duplicate (entity,start,end); distinct overlapping spans permitted."
+    },
+    "result_exact_keys": ["outcome", "code", "manifest", "spans"],
+    "result_pairs": {
+      "READY_FOR_HUMAN_REVIEW": ["DETECTOR_COMPLETED"],
+      "MANUAL_REQUIRED": ["DETECTOR_UNAVAILABLE", "UNSUPPORTED_LANGUAGE"],
+      "FAILED_PRIVATE": ["INVALID_INPUT", "DETECTOR_ERROR", "INVALID_RESULT"]
+    },
+    "failure_findings": "Non-completed results must have empty spans; fixed codes contain no exception/source text.",
+    "completed_findings": "Valid manifest and findings required even for zero detections; complete human review remains required.",
+    "forbidden_outcomes": ["SAFE", "AUTO_APPROVED", "APPROVED", "PUBLISHED"]
+  },
+  "evaluation": {
+    "path": "backend/apps/sanitization/evaluation.py",
+    "case_limit": 1000,
+    "case_exact_keys": ["id", "family", "split", "language", "group", "text", "spans"],
+    "id_and_family_pattern": "^[a-z][a-z0-9-]{0,63}$",
+    "splits": ["development", "calibration", "evaluation"],
+    "languages": ["en", "mixed", "other"],
+    "groups": ["english", "mixed_other", "adversarial"],
+    "label_span_keys": ["entity", "start", "end"],
+    "corpus_status": "GENERATED_PREPARATION_NOT_INDEPENDENTLY_REVIEWED",
+    "manifest": "Canonical SHA-256 JSON fingerprint plus exact sorted case membership per split; duplicate IDs, declared cross-split family and exact-text overlap rejected.",
+    "declared_preparation_counts": {"total": 300, "development": 150, "calibration": 75, "evaluation": 75},
+    "ground_truth_limit": "Generated labels/templates and declared family separation are preparation only. Near-duplicate families/language realism and independent labels remain unverified; evaluation designation is not an untouched held-out study.",
+    "matching": "Exact (entity,start,end); wrong overlapping boundaries contribute FP and FN.",
+    "precision": "TP/(TP+FP); NULL at zero denominator.",
+    "recall": "TP/(TP+FN); NULL at zero denominator.",
+    "coverage": "Metrics describe completed detector cases only; manual/failed counts and fixed codes remain explicit and must accompany metrics. Unsupported-language completed observations are invalid.",
+    "private_aggregate": "Counts, synthetic case IDs, validated engine metadata and fingerprints only; no source text, findings, offsets, substrings or scores.",
+    "leakage_probe_limit": "Optional exact synthetic forbidden-substring check is incomplete; it cannot certify profile permissions, paraphrase/encoding safety or API/browser/cache disclosure.",
+    "unmeasured": ["real_model_quality", "human_review_burden", "latency", "profile_specific_forbidden_field_coverage", "live_disclosure_safety"]
+  },
+  "runtime_requirements": [
+    "Pin and verify local recognizer/model/package/configuration artifacts in a separate reviewed optional integration; no implicit install/download.",
+    "Provide actual timeout/process/resource isolation; the synchronous helper cannot interrupt a hung adapter.",
+    "Missing, failed, uncertain or unsupported assistance stays private/manual, never an empty successful detection result. Any explicit choice of established rule-only workflow remains visible and separately reviewed.",
+    "Preserve existing deterministic projection when assistance is deliberately disabled; no detector finding or absence may widen recipient fields.",
+    "Before quality claims: two independent label reviews/disagreements, near-duplicate family review, frozen corpus/policy/engine/config/splits, untouched held-out cases and separate one-engine comparison runs.",
+    "All candidates still require existing exact source/candidate/policy/profile/channel-bound human approval. Changed inputs invalidate approval; failures never publish."
+  ]
+}

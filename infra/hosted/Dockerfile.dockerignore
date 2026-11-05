@@ -1,0 +1,14 @@
+**
+!backend/
+!backend/**
+!infra/
+!infra/**
+**/node_modules/**
+**/__pycache__/**
+**/*.pyc
+.cache/**
+**/.env
+**/.env.*
+**/*.pdf
+infra/*.md
+infra/native/**

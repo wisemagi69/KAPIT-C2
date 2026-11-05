@@ -1,0 +1,54 @@
+{
+  "contract": "TASK-120 error codes and audit allowlist (plan §5.3, S14)",
+  "errors": [
+    "STALE_REVIEW",
+    "USE_CANDIDATE_SET",
+    "DECISION_CONFLICT",
+    "IDEMPOTENCY_CONFLICT",
+    "SELF_APPROVAL_DENIED",
+    "REVISION_CONFLICT",
+    "CORRECTION_UNAVAILABLE",
+    "WITHDRAWAL_CONFLICT",
+    "POLICY_UNAVAILABLE",
+    "STALE_POLICY",
+    "AUTHORITY_PROTECTED",
+    "INVALID_FILTER",
+    "INVALID_CURSOR",
+    "NOT_FOUND"
+  ],
+  "error_body_rule": "Bodies never contain hidden counts, names or identifiers.",
+  "audit_events": [
+    "REVIEW_BATCH",
+    "CORRECTION_SUPERSEDED",
+    "PUBLICATION_WITHDRAWN",
+    "POLICY_PROPOSED",
+    "POLICY_APPLIED",
+    "POLICY_DENIED",
+    "SCOPE_CHANGED",
+    "REGENERATION_QUEUED",
+    "INTEGRATION_REQUESTED",
+    "INTEGRATION_APPROVED",
+    "INTEGRATION_COLLECTED",
+    "INTEGRATION_REVOKED",
+    "INTEGRATION_AUTH_FAILED",
+    "INTEGRATION_READ"
+  ],
+  "audit_safe_metadata": "allowlisted ids, codes, profile and outcome only; no key, secret, reason text or report content",
+  "lock_order": [
+    "organization",
+    "actor and integration client",
+    "report",
+    "revision-withdrawal check",
+    "variants by id",
+    "publications by id"
+  ],
+  "authority_model": {
+    "AdminAuthority.kind": [
+      "POLICY",
+      "INTEGRATION"
+    ],
+    "policy": "proposer and activator are different active administrators holding active POLICY authority (D2)",
+    "full_key": "requester and approver are different active administrators holding active INTEGRATION authority (D5)",
+    "S2": "an administrator cannot reset the password of, change the role of, or deactivate an account holding active AdminAuthority -> 403 AUTHORITY_PROTECTED; holders may change their own password; recovery and disabling are local-operator actions"
+  }
+}

@@ -1,0 +1,27 @@
+# Build only the local application and reviewed runtime definitions.
+**
+!backend/
+!backend/**
+!web/
+!web/dist/
+!web/dist/**
+!infra/
+!infra/**
+.cache/
+.cache/**
+**/node_modules/
+**/node_modules/**
+**/__pycache__/
+**/__pycache__/**
+**/*.pyc
+.git/
+.codex/
+.agents/
+.aws/
+.env
+.env.*
+**/.env
+**/.env.*
+*.pdf
+**/*.pdf
+KAPIT_C2_AI_Development_Orchestrator_Prompt.md

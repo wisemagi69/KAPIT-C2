@@ -1,0 +1,13 @@
+{
+  "contract": "TASK-120 tombstone and delivery ledger (plan §4.4, S13, F16)",
+  "removed_entry": {
+    "publication_id": "66666666-6666-4666-8666-666666666666",
+    "state": "WITHDRAWN"
+  },
+  "rules": [
+    "Listed only for publications previously delivered to the same principal, on a channel still held at an adequate ceiling, that are no longer served.",
+    "Uniform entry: no cause, no time, no replacement link; a replaced lower-profile item appears as a tombstone while the report stays visible under its new id, never linked.",
+    "Feed page, detail and integration page record PublicationDelivery in the same transaction; a failed delivery insert fails the read closed with a uniform error and no partial body.",
+    "A principal whose grant was revoked gets 404 for the whole channel. The ledger is private evidence; retention deferred to M4."
+  ]
+}

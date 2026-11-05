@@ -1,0 +1,27 @@
+{
+  "contract": "TASK-120 frozen M2 mobile shapes (plan §5.4, S8, F19); M3 must not change these while M2 acceptance is pending",
+  "mobile_user_object_keys": [
+    "id",
+    "username",
+    "display_name",
+    "role",
+    "unit",
+    "channel",
+    "profile"
+  ],
+  "scope_object_keys": [
+    "id",
+    "code",
+    "name"
+  ],
+  "profile": "DEMO-REDUCED",
+  "rules": [
+    "Exactly one unit and one channel for submitter/reviewer; a unit with more than one eligible channel gets the existing context failure (submitter2 test).",
+    "MobileOperationSerializer keeps subclassing the unchanged OperationSerializer; mobile rejects correction_reason as an unknown field.",
+    "Mobile can_correct and acceptance stay RETURNED-only.",
+    "Mobile summary, history, workflow and receipt bodies are frozen across M3 contexts and unrelated epoch increments.",
+    "Unit 01 keeps the legacy NULL context.",
+    "Receipt and revision branches of kapit_source_link_guard are copied byte-for-byte.",
+    "No edits to backend/tests/mobile/**, android/** or contracts/mobile/**."
+  ]
+}

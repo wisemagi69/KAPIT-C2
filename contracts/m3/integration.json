@@ -1,0 +1,40 @@
+{
+  "contract": "TASK-120 integration key, lifecycle and cursor (plan §5.2, D5, S5, SN4, SN7, FN2)",
+  "key_format": "kapit_ic_<prefix:8 chars [a-z0-9]>_<secret: >=256 bits from secrets, urlsafe>",
+  "key_digest": "HMAC-SHA256(derive(SECRET_KEY, 'kapit-integration-key-v1'), key); only the digest is stored",
+  "transport": "Authorization: Bearer only; no query-string key; no session auth; GET only (other methods 405, no side effect)",
+  "lifecycle": {
+    "REDUCED_or_SUMMARY": "request and collect in one transaction by the requester",
+    "FULL": "request -> approval by a different INTEGRATION holder -> collect by the requester only, once",
+    "collect": "secret generated only at collect under the organization lock; refused after collect_deadline (<= 24 h) or expires_at; requester and approver authority and active administrator role re-checked",
+    "expiry": "expires_at <= created_at + 90 days",
+    "issuer_revocation": "a key outlives later revocation of its issuer's authority; it stops only by key revocation or expiry"
+  },
+  "uniform_401": {
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Use a valid integration key."
+  },
+  "auth_failure_audit_prefix": "recorded only if it matches ^[a-z0-9]{8}$, otherwise no value",
+  "cursor": {
+    "signing": "django.core.signing, salt 'kapit.integration.cursor', 15 minute max age",
+    "fields": [
+      "last_publication_id",
+      "client_id",
+      "channel_id",
+      "profile_ceiling",
+      "policy_id",
+      "policy_epoch",
+      "scope_epochs_digest",
+      "filter_digest"
+    ],
+    "scope_epochs_digest_FN2": "digest of sorted [[unit_id, scope_epoch], ...] for every unit sourcing the client's channel at issue time; any change -> INVALID_CURSOR",
+    "carries_no_timestamp": true,
+    "errors": "tampered, expired, cross-client or epoch-mismatched -> 400 INVALID_CURSOR"
+  },
+  "page": {
+    "default": 25,
+    "max": 100,
+    "ordering": "(published_at DESC, id DESC) on stored exact values",
+    "items": "exactly serialize_publication output for the matching recipient"
+  }
+}
